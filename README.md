@@ -2,11 +2,11 @@
 
 **Hybrid Quantum Machine Learning Platform for Early Disease Detection**
 
-Q-Care Detect is a research and educational software project. It compares **classical machine learning models** with **hybrid quantum-classical machine learning models** on a public medical benchmark dataset.
+A research and educational software platform: **classical pre-processing and feature engineering** plus **hybrid quantum-classical models** (VQC, QSVC / quantum-inspired classifiers), benchmarked against **purely classical** models on **public biomedical datasets**.
 
-The goal is a **fair, reproducible comparison** — not a hospital product, and not a claim that quantum models are automatically better.
+This repository implements that problem as a **prototype you can run**, not as a hospital or diagnostic product.
 
-> **Current status:** This repository currently contains documentation only (`README.md` and `PRD.md`). The Python training pipeline, notebooks, and user interface are planned next. See [What is built today](#what-is-built-today).
+> **Current status:** Phase 1 (classical baseline) is implemented. Hybrid QML, explainability, and the UI are later phases. Run `python -m src.train_classical` from the project root after `pip install -r requirements.txt`.
 
 ---
 
@@ -14,32 +14,69 @@ The goal is a **fair, reproducible comparison** — not a hospital product, and 
 
 **This project is for educational and research purposes only. It is not a medical device and must not be used for clinical diagnosis or treatment decisions.**
 
-Additional rules this project will always follow:
+The assignment text talks about “early disease detection” and “medical diagnosis” as a **research theme**. In this codebase:
 
-- Predictions are **research risk classification**, never a diagnosis.
-- Every prediction surface must show: **“Research risk classification — not for clinical use.”**
+- Outputs are **research risk classification**, never a diagnosis.
+- Every prediction surface must show: **Research risk classification - not for clinical use.**
 - Do not treat model output as medical advice.
-- Do not use patient-identifiable or hospital data.
-- Use only public benchmark datasets for the initial versions.
-- Do not claim that quantum models are automatically better than classical models.
+- Use **public benchmark data** only in the initial versions. No patient-identifiable or hospital EHR dumps.
+- Do **not** claim quantum models are automatically better. “Improve accuracy vs classical” is a **hypothesis to measure**, not a guaranteed result.
 
 ---
 
-## Project purpose
+## Problem statement (assignment)
 
-Many machine learning tutorials stop at “the accuracy was high.” This project goes further, in a beginner-friendly way:
+### Background
 
-1. Train simple **classical** models (starting with Logistic Regression and Random Forest).
-2. Measure them with several metrics, not just accuracy (because missing a malignant case is more serious than a wrong “benign” guess in a research comparison).
-3. Later, train **hybrid quantum-classical** models (VQC and QSVC) on a **reduced** set of features.
-4. Compare both families of models using the **same data split, same metrics, and same evaluation rules**.
+Early and accurate detection of diseases can improve treatment outcomes and reduce healthcare costs in **clinical settings**. Classical machine learning has been successful on many biomedical tasks, but it can struggle with **high-dimensional, noisy, and complex** data (for example genomics, medical imaging, and electronic health records).
 
-The first dataset is scikit-learn’s built-in **Wisconsin Diagnostic Breast Cancer** dataset. It is small, public, fully numeric, and suitable for a prototype. Original labels are `0 = malignant` and `1 = benign`. The project will convert the target so that:
+Quantum machine learning (QML) is studied because quantum states can, in principle, represent complex correlations (superposition and entanglement). **Today’s quantum hardware is limited**, so a **hybrid quantum-classical** design is the practical path: classical computers do loading, scaling, and feature selection; quantum circuits (or simulators) run a small learning model. That can run on **simulators** and, later, **near-term quantum devices**.
 
-- **1 = malignant / disease present** (the positive class)
-- **0 = benign / disease absent**
+### Description
 
-That conversion exists so “positive” means the medically important class when we compute recall, precision, and related metrics.
+This project designs a **hybrid quantum machine learning platform** for **early disease-risk research** on biomedical **benchmarks**. The platform will:
+
+- ingest public tabular (and later, if added, other public) biomedical datasets;
+- apply classical pre-processing and feature engineering;
+- train quantum-enhanced classifiers (quantum SVM / variational quantum classifier / related hybrid models);
+- run inference and evaluation against classical baselines;
+- add explainability and documentation.
+
+Example **research domains** (separate experiments, not one “guess my disease” box): cancer-related benchmarks, cardiovascular tables, neurological public sets — only where data is public and licensed.
+
+### Objectives
+
+| ID | Objective | How this repo treats it |
+|----|-----------|-------------------------|
+| O1 | Design a hybrid quantum-classical architecture for early disease-risk **research** | Classical pipeline first; QML on reduced features (Phase 3) |
+| O2 | Develop quantum-enhanced classification models for high-dimensional biomedical data | High dimension is handled **classically** (select 4–8 features); quantum part stays small (near-term hardware) |
+| O3 | Improve accuracy, sensitivity, and specificity vs classical baselines | **Evaluate and report honestly.** QML may win, tie, or lose |
+| O4 | Scalable, interpretable, compatible with simulators and near-term hardware | Simulators first; small circuits; explainability in Phase 4 |
+| O5 | Pre-processing, feature selection, explainability | Phases 1–2 and 4 |
+| O6 | Benchmark hybrid vs classical: accuracy, compute cost, generalization | Same split, same metrics, plus runtime |
+
+---
+
+## Delivery table (expected deliverables)
+
+| # | Deliverable | What it is | Phase | Status |
+|---|----------------|------------|-------|--------|
+| D1 | Problem docs | This README + [PRD.md](PRD.md) (architecture, safety, frontend spec) | Docs | **Done** |
+| D2 | Data handling pipeline | Load public data, inspect, relabel, stratified train/test, no leakage | 1 | **Done** (Wisconsin breast cancer via sklearn) |
+| D3 | Classical baselines | Logistic Regression (scaled Pipeline) + Random Forest | 1 | **Done** |
+| D4 | Evaluation module | Accuracy, precision, recall/sensitivity, specificity, F1, ROC-AUC, confusion matrices, plots, CSV | 1 | **Done** |
+| D5 | Training / inference CLI | `python -m src.train_classical`; saved `.joblib` models | 1 | **Done** |
+| D6 | Tests and reproducibility | `pytest`; `random_state=42`; documented commands | 1 | **Done** |
+| D7 | Feature selection / engineering | Reduce ~30 features to ~4–8 for quantum circuits | 2 | Not started |
+| D8 | Hybrid QML models | VQC and QSVC (or equivalent) on simulators | 3 | Not started |
+| D9 | QML vs classical benchmark | Same metrics + runtime; no assumed quantum win | 3 | Not started |
+| D10 | Explainability | Feature importance / SHAP-style (classical); QML limitations documented | 4 | Not started |
+| D11 | Research report artifacts | Written comparison under `outputs/reports/` | 4 | Not started |
+| D12 | User interface | Streamlit: comparison dashboard, disclaimer always on | 5 | Not started ([task.md](task.md) has the UI prompt) |
+| D13 | Optional API / deploy | FastAPI + hosting | 6 | Optional |
+| D14 | Comprehensive documentation | README, PRD, notebook, comments | Ongoing | In progress |
+
+**Out of scope for this delivery:** clinical deployment, diagnosing a person from typed symptoms, fusing unrelated diseases into one “you have X” model, hospital EHR ingestion, claiming FDA/clinical validation.
 
 ---
 
@@ -47,72 +84,55 @@ That conversion exists so “positive” means the medically important class whe
 
 | Item | Status |
 |------|--------|
-| README (this file) | Done |
-| Product Requirements Document ([PRD.md](PRD.md)) | Done |
-| Python source code (`src/`) | Not yet |
-| Tests | Not yet |
-| Jupyter notebook | Not yet |
-| Trained models and plots | Not yet |
-| Quantum models (Qiskit) | Not yet — Phase 3 |
-| Streamlit user interface | Not yet — Phase 5 |
-| FastAPI / cloud / login / database | Not planned for early phases |
-
-The full product plan, including a **frontend design skeleton**, lives in [PRD.md](PRD.md).
+| README + PRD + frontend task prompt | Done |
+| `src/` classical pipeline | Done — Phase 1 |
+| Tests (`pytest`) | Done |
+| Notebook `notebooks/01_classical_baseline.ipynb` | Done |
+| Models and plots | Created when you run training |
+| Qiskit / VQC / QSVC | Not yet — Phase 3 |
+| Streamlit | Not yet — Phase 5 |
 
 ---
 
-## Planned folder structure
-
-When Phase 1 code is added, the repository is intended to look like this:
+## Hybrid architecture (simple picture)
 
 ```text
-quantum-disease-detection/
-│
-├── README.md
-├── PRD.md
-├── requirements.txt
-├── .gitignore
-│
-├── data/
-│   ├── raw/
-│   └── processed/
-│
-├── notebooks/
-│   └── 01_classical_baseline.ipynb
-│
-├── src/
-│   ├── __init__.py
-│   ├── data_loader.py
-│   ├── preprocessing.py
-│   ├── train_classical.py
-│   ├── evaluate.py
-│   └── utils.py
-│
-├── models/
-│
-├── outputs/
-│   ├── figures/
-│   ├── metrics/
-│   └── reports/
-│
-└── tests/
-    └── test_pipeline.py
+Public biomedical table
+        |
+        v
+Classical: clean, split, scale, select features
+        |
+        +---> Classical models (LR, Random Forest)     [Phase 1]
+        |
+        +---> Hybrid QML (VQC, QSVC on simulator)      [Phase 3]
+        |
+        v
+Same metrics + plots + (later) explainability
+        |
+        v
+Optional UI showing a research comparison              [Phase 5]
 ```
 
-You do not need this tree yet. It is listed so you can see where each piece will live.
+Near-term quantum devices cannot take raw genomics or full EHR. This platform **shrinks** the problem classically, then runs a **small** quantum model. That is the hybrid design, not “one QML that detects every disease from symptoms.”
 
-**What each planned folder is for (plain language):**
+---
 
-| Path | Purpose |
-|------|---------|
-| `src/` | Reusable Python functions: load data, split, train, evaluate |
-| `notebooks/` | Step-by-step learning notebook (optional; the main run path is the terminal) |
-| `data/` | Placeholders for saved tables later (Phase 1 loads data from scikit-learn, not from hospital files) |
-| `models/` | Saved trained models (`.joblib` files) |
-| `outputs/figures/` | PNG plots (confusion matrices, ROC curve, metric bars) |
-| `outputs/metrics/` | CSV table of scores |
-| `outputs/reports/` | Written summaries in later phases |
-| `tests/` | Automated checks so the pipeline does not silently break |
+## Folder structure
+
+```text
+qml/
+├── README.md
+├── PRD.md
+├── task.md
+├── requirements.txt
+├── .gitignore
+├── data/raw/  data/processed/
+├── notebooks/01_classical_baseline.ipynb
+├── src/          (data_loader, preprocessing, train_classical, evaluate, utils)
+├── models/
+├── outputs/figures/  outputs/metrics/  outputs/reports/
+└── tests/test_pipeline.py
+```
 
 ---
 
@@ -120,20 +140,16 @@ You do not need this tree yet. It is listed so you can see where each piece will
 
 | Phase | What it is | Status |
 |-------|------------|--------|
-| **1** | Classical ML baseline (Logistic Regression + Random Forest) | Planned next |
-| **2** | Stronger evaluation, plots, feature selection (about 4–8 features), reproducibility | Later |
-| **3** | Hybrid QML models (VQC and QSVC) | Later — do not install Qiskit until then |
-| **4** | Explainability and report generation | Later |
-| **5** | Simple Streamlit user interface | Later |
-| **6** | Optional FastAPI backend and deployment | Optional / later |
-
-We will not start Phase 2 until Phase 1 is working. We will not install Qiskit or build a UI during Phase 1.
+| **1** | Classical ML baseline | **Done** |
+| **2** | Feature selection (~4–8 features), reproducibility | Next |
+| **3** | Hybrid QML (VQC, QSVC), benchmark vs classical | Later |
+| **4** | Explainability and reports | Later |
+| **5** | Streamlit UI | Later |
+| **6** | Optional FastAPI / deployment | Optional |
 
 ---
 
-## Installation (after Phase 1 code exists)
-
-These commands will apply once `requirements.txt` and the `src/` package are added. They will not work on a documentation-only checkout.
+## Installation
 
 **Windows (PowerShell):**
 
@@ -153,46 +169,28 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-If PowerShell blocks activation, you may need:
+If PowerShell blocks activation:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-Planned packages include: `pandas`, `numpy`, `scikit-learn`, `matplotlib`, `seaborn`, `joblib`, `pytest`, and `jupyter`.
-
 ---
 
-## How to run the project (after Phase 1 code exists)
-
-From the project root, with the virtual environment activated:
+## How to run (Phase 1)
 
 ```powershell
 python -m src.train_classical
-```
-
-This command is the intended main entry point. It should:
-
-1. Load the breast cancer dataset.
-2. Convert labels so malignant is the positive class.
-3. Split data 80% train / 20% test (stratified, `random_state=42`).
-4. Train Logistic Regression (with `StandardScaler` inside a Pipeline) and Random Forest.
-5. Print metrics and a beginner-friendly comparison.
-6. Save models, a metrics CSV, and PNG plots.
-
-Run tests with:
-
-```powershell
 pytest
 ```
 
-Open the learning notebook (optional) with:
+Optional notebook:
 
 ```powershell
 jupyter notebook notebooks/01_classical_baseline.ipynb
 ```
 
-**Planned output files after a successful Phase 1 run:**
+**Phase 1 outputs:**
 
 - `outputs/metrics/classical_model_metrics.csv`
 - `outputs/figures/logistic_regression_confusion_matrix.png`
@@ -202,94 +200,30 @@ jupyter notebook notebooks/01_classical_baseline.ipynb
 - `models/logistic_regression_model.joblib`
 - `models/random_forest_model.joblib`
 
+**First dataset:** sklearn Wisconsin Diagnostic Breast Cancer (public). Original labels `0 = malignant`, `1 = benign`. This project uses **1 = malignant** (positive class).
+
 ---
 
 ## What each metric means
 
-Malignant is the **positive** class (`1`). Benign is the **negative** class (`0`).
+Malignant is the **positive** class (`1`).
 
-Imagine the model looks at one row and says “malignant” or “benign”:
+| Name | Meaning |
+|------|---------|
+| **TP / FN / TN / FP** | Hit / miss / correct benign / false alarm |
+| **Accuracy** | Overall fraction correct (can hide misses) |
+| **Precision** | Of predicted malignant, how many were malignant |
+| **Recall / Sensitivity** | Of true malignant, how many were caught |
+| **Specificity** | `TN / (TN + FP)` |
+| **F1** | Balance of precision and recall |
+| **ROC-AUC** | Ranking from `predict_proba[:, 1]`, not a clinical score |
 
-| Name | Meaning in this project |
-|------|-------------------------|
-| **True Positive (TP)** | Malignant sample predicted as malignant |
-| **False Negative (FN)** | Malignant sample predicted as benign (a miss) |
-| **True Negative (TN)** | Benign sample predicted as benign |
-| **False Positive (FP)** | Benign sample predicted as malignant (a false alarm) |
-
-**Accuracy** — overall fraction of predictions that match the true label. Easy to quote, but can look good even if the model misses many malignant cases when classes are uneven.
-
-**Precision** — of the rows the model called malignant, how many really were malignant. High precision means fewer false alarms.
-
-**Recall / Sensitivity** — of the rows that really were malignant, how many the model caught. High recall means fewer misses. In a disease-risk research setting, recall is often more important than looking “generally accurate.”
-
-**Specificity** — of the rows that really were benign, how many the model correctly called benign. Computed from the confusion matrix:
-
-```text
-specificity = TN / (TN + FP)
-```
-
-**F1-score** — a single number that balances precision and recall. Useful when you do not want to look at only one of those two.
-
-**ROC-AUC** — how well the model *ranks* malignant vs benign when it outputs a probability, not just a yes/no label. It must use predicted probabilities (`predict_proba`), not the final 0/1 class. A value near 0.5 is little better than chance; a value near 1.0 means strong ranking on the test set. High AUC on this small public dataset still does **not** mean the model is clinically valid.
-
-**Confusion matrix** — a 2×2 table of TP, FP, FN, TN. Heatmaps make that table easy to see.
-
-None of these metrics turn the project into a diagnostic tool. They only describe research performance on a public test split.
-
----
-
-## Why we split data into training and test sets
-
-If you train and score on the **same** rows, the model can memorize those rows. The score would look excellent and still fail on new rows.
-
-So we:
-
-1. **Train** on 80% of the rows (the model is allowed to learn from these).
-2. **Test** on the remaining 20% (the model must not have used these while learning).
-
-We use a **stratified** split so both classes (malignant and benign) appear in train and test in similar proportions. We set `random_state=42` so the split is **reproducible**: you and a classmate can get the same split.
-
-Scaling (see below) is fit **only** on the training set. Using test-set statistics while training would leak information and make scores look better than a fair test.
-
----
-
-## Why StandardScaler is used for Logistic Regression
-
-The dataset has 30 numeric features on **different scales** (for example, a “mean area” number can be much larger than a “smoothness” number).
-
-**Logistic Regression** draws a linear decision boundary. Large-scale features can dominate small-scale ones if you do not standardize. `StandardScaler` rewrites each feature so that, on the training data, it has mean 0 and variance 1. That puts features on a comparable footing.
-
-We will wrap scaling and the classifier in a scikit-learn **Pipeline**:
-
-```python
-Pipeline([
-    ("scaler", StandardScaler()),
-    ("classifier", LogisticRegression(...)),
-])
-```
-
-The Pipeline fits the scaler on **training** data only, then applies the same transform to the test data. That is the correct, no-leakage pattern.
-
-**Random Forest** does **not** need this scaler. It splits on thresholds (“is feature X above 12.3?”) and is not thrown off by different units the same way. Scaling it is unnecessary for a fair baseline and would mix two different design choices.
-
----
-
-## Safety language you will see in the software
-
-When code exists, printed summaries, plots, and any future UI must include:
-
-**Research risk classification — not for clinical use.**
-
-Never describe an output as a diagnosis, treatment recommendation, or patient result.
+Train/test split (80/20, stratified, `random_state=42`) exists so scores are on **unseen** rows. `StandardScaler` is used **only** for Logistic Regression, fit on **train** only (inside a Pipeline). Random Forest is not scaled.
 
 ---
 
 ## Next steps
 
-- **Phase 2** will add richer evaluation, saved plots you already get in Phase 1 plus feature selection (reducing roughly 30 features to about 4–8 so a quantum circuit can use them), and reproducibility details.
-- **Phase 3** will add hybrid quantum-classical models (VQC and QSVC) and compare them **fairly** against the classical baseline — without assuming quantum wins.
+Phase 2: feature selection for QML. Phase 3: hybrid models and a fair benchmark. Do not assume quantum wins.
 
-Frontend design (pages, layout, copy rules) is specified in [PRD.md](PRD.md) under **Frontend**. That UI is **not** built until Phase 5.
-
-When you are ready for code, the next implementation step is **Phase 1 only**: classical baseline, no Qiskit, no Streamlit.
+UI design: [PRD.md](PRD.md) Section 10 and [task.md](task.md).

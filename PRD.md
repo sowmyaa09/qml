@@ -2,363 +2,301 @@
 
 **Product name:** Q-Care Detect — Hybrid Quantum Machine Learning Platform for Early Disease Detection  
 **Document type:** Product Requirements Document  
-**Version:** 0.1 (documentation only)  
-**Status:** Active for planning; software not implemented yet  
-**Audience:** Project owner (beginner) and future contributors
+**Version:** 0.2  
+**Status:** Active. Phase 1 software exists; hybrid QML not built yet.  
+**Audience:** Project owner, reviewers, future contributors
 
-This PRD describes **what** the product should do and **why**. It is not source code. Implementation happens phase by phase. Frontend is specified in [Section 10](#10-frontend--design-and-skeleton) and must **not** be built until Phase 5.
+This PRD is the source of truth for **what** we build. It maps the assignment problem statement onto a **research prototype** with explicit safety limits. Frontend remains [Section 10](#10-frontend--design-and-skeleton) and is **not** built until Phase 5.
 
 ---
 
-## 1. Vision and problem
+## 0. Official problem statement
+
+The following is the assignment brief. Section 1 explains how this product **implements** it without becoming a medical device.
+
+### Background
+
+Early and accurate detection of diseases significantly improves treatment outcomes and reduces healthcare costs. Classical machine learning models have achieved notable success in medical diagnosis; however, they often face limitations when dealing with high-dimensional, noisy, and complex biomedical data (e.g., genomics, medical imaging, and electronic health records).
+
+Quantum machine learning (QML) offers the potential to capture intricate patterns through quantum superposition and entanglement. Due to current hardware constraints, a hybrid quantum-classical approach provides a practical pathway to leverage quantum advantages while remaining executable on existing quantum simulators and near-term quantum devices.
+
+### Description
+
+This problem focuses on designing and developing a hybrid quantum machine learning platform for early disease detection. The platform will integrate classical pre-processing and feature engineering with quantum-enhanced learning models (such as quantum support vector machines, quantum neural networks, or variational quantum classifiers). It will be applied to biomedical datasets for the early identification of diseases (e.g., cancer, cardiovascular disorders, or neurological conditions). The system should support data ingestion, hybrid model training, prediction, explainability, and performance evaluation against purely classical baselines.
+
+### Objectives
+
+- Design a hybrid quantum-classical machine learning architecture suitable for early disease detection.
+- Develop quantum-enhanced classification/regression models that can process high-dimensional biomedical data.
+- Improve detection accuracy, sensitivity, and specificity compared with classical machine learning baselines.
+- Ensure the platform is scalable, interpretable, and compatible with near-term quantum hardware and simulators.
+- Incorporate data pre-processing, feature selection, and model explainability modules.
+- Benchmark the hybrid approach against classical models in terms of accuracy, computational efficiency, and generalization performance.
+
+### Expected solution (assignment)
+
+A fully functional hybrid quantum machine learning software platform capable of performing early disease detection on real or benchmark biomedical datasets. The solution must include data handling pipelines, hybrid quantum-classical model implementation, training and inference workflows, performance evaluation, explainability features, and comprehensive documentation.
+
+### How this PRD interprets the brief
+
+| Assignment phrase | Product interpretation |
+|-------------------|------------------------|
+| Medical diagnosis / early identification | **Research binary (or later multi-class) risk classification** on public labels. Never a clinical diagnosis. |
+| Real or benchmark biomedical datasets | **Public benchmarks first** (sklearn Wisconsin). Additional **public** cancer / cardio / neuro tables as **separate** experiments. No identifiable hospital EHR unless a future legal/ethics addendum exists. |
+| Improve accuracy vs classical | **Goal to measure.** Report win/tie/loss. Do not ship a claim that QML is better. |
+| High-dimensional genomics / imaging / EHR | **Out of scope for v1.** v1 is tabular. High dimension is reduced classically to 4–8 features before QML. Imaging/genomics would be a later, separate track. |
+| Quantum neural networks | Optional after VQC/QSVC if time allows. Not required for Phase 3 MVP. |
+| Regression | Not in v1. Classification only unless a later phase adds it. |
+| Fully functional platform | Phased delivery (see [Delivery table](#2-delivery-table-expected-deliverables)). Phase 1 is classical-only by design. |
+
+---
+
+## 1. Vision, product type, and users
 
 ### 1.1 Vision
 
-Build a **research and educational** platform that compares:
+A **hybrid quantum-classical research platform** that:
 
-- classical machine learning models, and
-- hybrid quantum-classical machine learning models
+1. Ingests public biomedical tables.
+2. Pre-processes and selects features on a classical CPU.
+3. Trains classical baselines and (later) hybrid QML models on simulators.
+4. Evaluates with the same metrics and split.
+5. Explains results at a research level.
+6. Optionally shows a non-clinical comparison UI.
 
-on **binary disease-risk classification** using **public benchmark data**.
+### 1.2 Product type
 
-The platform should help a beginner understand:
+**Is:** academic/research prototype, teaching codebase, classical-vs-QML bench.
 
-- how a clean ML pipeline is structured,
-- why evaluation needs more than accuracy,
-- why train/test splits and scaling rules matter,
-- and how a quantum model can be compared **fairly** to a classical model — not marketed as automatically superior.
+**Is not:** medical device, clinical decision support, patient portal, symptom checker that tells a user which disease they have, FDA-validated software.
 
-### 1.2 Problem
+### 1.3 Users
 
-Tutorials often:
+| User | Needs |
+|------|--------|
+| Student / beginner | Runnable CLI, plain-language docs, disclaimers |
+| Reviewer | Reproducible splits, metrics CSV, honest QML comparison |
+| Phase 5 UI visitor | Comparison of models, never a personal diagnosis |
 
-- report only accuracy,
-- mix training and test information (data leakage),
-- jump to quantum libraries before a classical baseline exists,
-- or present medical-sounding outputs that a reader could mistake for a diagnosis.
-
-Q-Care Detect exists to avoid those mistakes in a small, reproducible project.
-
-### 1.3 Product type
-
-This is **not**:
-
-- a medical device,
-- a clinical decision-support system,
-- a hospital integration,
-- a patient portal.
-
-This **is**:
-
-- an academic/research prototype,
-- a teaching codebase,
-- a comparison bench for classical ML vs QML on a public dataset.
+No clinician-user or patient-user in this product definition.
 
 ---
 
-## 2. Goals and non-goals
+## 2. Delivery table (expected deliverables)
 
-### 2.1 Goals
+This is the checklist for the assignment’s “expected solution.”
 
-| ID | Goal |
-|----|------|
-| G1 | Provide a reproducible classical baseline (Phase 1) before any quantum work. |
-| G2 | Evaluate models with a full metric set: accuracy, precision, recall/sensitivity, specificity, F1, ROC-AUC, confusion matrix. |
-| G3 | Keep malignant as the positive class after label conversion. |
-| G4 | Prevent data leakage (split first; fit scalers on train only). |
-| G5 | Later, compare hybrid QML (VQC, QSVC) to classical models with the same split and metrics. |
-| G6 | Always label outputs as research risk classification, never diagnosis. |
-| G7 | Stay beginner-readable: clear names, functions, docstrings, pathlib, no unnecessary complexity. |
+| ID | Deliverable | Description | Acceptance (research) | Phase | Status |
+|----|-------------|-------------|------------------------|-------|--------|
+| D1 | Documentation | README, this PRD, safety language, architecture | Reviewer can understand scope and limits | Docs | **Done** (v0.2) |
+| D2 | Data ingestion | Load public dataset(s); inspect; consistent `1` = disease-present | Pipeline runs without hospital files | 1 (+ later datasets in 2+) | **Done** (Wisconsin) |
+| D3 | Pre-processing | Stratified split; scaler on train only for linear models | No test leakage | 1 | **Done** |
+| D4 | Classical baselines | Logistic Regression + Random Forest | Saved models + metrics | 1 | **Done** |
+| D5 | Training workflow | CLI train + persist artifacts | `python -m src.train_classical` | 1 | **Done** |
+| D6 | Inference workflow | `predict` / `predict_proba` on held-out test rows | Probabilities used for ROC-AUC | 1 | **Done** |
+| D7 | Performance evaluation | Accuracy, precision, recall/sensitivity, specificity, F1, ROC-AUC, confusion matrix, plots | CSV + PNGs written | 1 | **Done** |
+| D8 | Tests | Dataset load, split preserves classes, metrics in [0, 1] | `pytest` passes | 1 | **Done** |
+| D9 | Feature engineering / selection | Reduce dimensionality for near-term QML (~4–8 features) | Documented method; same split seed | 2 | Not started |
+| D10 | Hybrid QML implementation | VQC and QSVC (simulator); classical wrap for features | Runnable without paid quantum cloud | 3 | Not started |
+| D11 | Hybrid training + inference | Train QML, save or document circuit params, predict on test | Same test indices as classical where possible | 3 | Not started |
+| D12 | Benchmark vs classical | Metrics + wall-clock time + generalization (test set) | Table of classical vs QML; no forced winner | 3 | Not started |
+| D13 | Near-term compatibility | Aer simulator; circuit depth/qubits documented; optional real-backend later | Runs on laptop simulator | 3 | Not started |
+| D14 | Explainability | Classical importances and/or SHAP; QML limits explained | Research report, not a clinical explanation | 4 | Not started |
+| D15 | Reports | `outputs/reports/` comparison write-up | Includes disclaimer | 4 | Not started |
+| D16 | UI | Streamlit comparison platform | Disclaimer on every page; no patient upload | 5 | Not started |
+| D17 | Optional API | FastAPI for research inference | Optional | 6 | Not started |
 
-### 2.2 Non-goals (do not build these in early phases)
-
-| ID | Non-goal |
-|----|----------|
-| NG1 | Clinical diagnosis, treatment advice, or “patient result” workflows. |
-| NG2 | Real hospital or patient-identifiable data. |
-| NG3 | Claiming quantum models are automatically better. |
-| NG4 | Frontend, cloud deployment, authentication, database, or public API in Phases 1–4. |
-| NG5 | Installing Qiskit or training quantum models before Phase 3. |
-| NG6 | Docker, Kubernetes, or production MLOps in Phase 1. |
-| NG7 | Unnecessary boilerplate files not required by the current phase. |
+**Minimum viable “assignment solution”:** D1–D12 plus D13 on a simulator. D14–D16 complete the stated platform (explainability + usable software). D17 is extra.
 
 ---
 
-## 3. Safety, ethics, and language rules
+## 3. Safety, ethics, and language
 
-These rules apply to code, notebooks, README, UI copy, plots, and reports.
+Applies to code, notebooks, README, UI, plots, and reports.
 
-### 3.1 Required disclaimer
-
-Use this text in the README and in any user-facing surface:
+**Required disclaimer:**
 
 > This project is for educational and research purposes only. It is not a medical device and must not be used for clinical diagnosis or treatment decisions.
 
-### 3.2 Required prediction label
+**Required label on predictions and scores:**
 
-Every prediction, metric summary, plot title area, and future UI result must include:
+**Research risk classification - not for clinical use.**
 
-**Research risk classification — not for clinical use.**
+| Use | Do not use |
+|-----|------------|
+| Research risk classification | Diagnosis / you have cancer |
+| Predicted class on a public benchmark | Patient portal / medical record |
+| Sensitivity on the test set | Screening tool for clinics |
+| Public benchmark | Hospital identifiable data |
 
-### 3.3 Language — required vs forbidden
+Do not claim quantum advantage unless a scoped experiment shows it. Never generalize to clinical care.
 
-| Use these | Do not use these |
-|-----------|------------------|
-| Research risk classification | Diagnosis / diagnosed |
-| Predicted class (malignant vs benign) on a public benchmark | Patient is sick / patient is healthy |
-| Model comparison / research prototype | Medical device / FDA / clinically validated (unless independently true, which this project is not) |
-| Sensitivity / recall on the test set | Screening tool for clinics |
-| Public benchmark dataset | Hospital records / my patients |
-
-Do **not** claim quantum advantage unless a later, carefully designed experiment actually shows a specific, scoped result — and even then, do not generalize to clinical care.
-
-### 3.4 Data ethics
-
-- Initial versions: **public benchmark data only** (sklearn Wisconsin Diagnostic Breast Cancer).
-- No names, medical record numbers, photos, or hospital exports.
-- No scraping of private health information.
+**Data ethics:** public benchmarks only for current versions. No names, MRNs, or scraped private health data.
 
 ---
 
-## 4. Users
+## 4. Goals and non-goals
 
-| User | Needs | Does not need |
-|------|--------|----------------|
-| **Student / beginner** | Step-by-step explanations, a single terminal command to run the baseline, plots that are easy to read | Production deployment, login, GPU cluster |
-| **Researcher / reviewer** | Reproducible split (`random_state=42`), saved metrics CSV, fair comparison protocol | A clinical UI |
-| **Future UI visitor (Phase 5)** | Plain-language comparison of models, always-visible disclaimer | Ability to upload real patient files |
+### 4.1 Goals
 
-There is no “clinician user” and no “patient user” in this product definition.
+| ID | Goal |
+|----|------|
+| G1 | Hybrid architecture: classical pre-process/select → quantum classifier (simulator). |
+| G2 | Classical baseline **before** QML (Phase 1 done). |
+| G3 | Full metric set including sensitivity and specificity. |
+| G4 | No data leakage. |
+| G5 | Fair QML vs classical benchmark (accuracy, time, test generalization). |
+| G6 | Feature selection so QML fits near-term qubit counts. |
+| G7 | Explainability at research level. |
+| G8 | Beginner-readable code; `random_state=42`. |
+| G9 | Language: research classification, never diagnosis. |
+
+### 4.2 Non-goals
+
+| ID | Non-goal |
+|----|----------|
+| NG1 | Telling a user which disease they have from typed symptoms. |
+| NG2 | Merging unrelated disease CSVs into one diagnostic model. |
+| NG3 | Clinical or hospital deployment. |
+| NG4 | Promising QML beats classical. |
+| NG5 | Full genomics / 3D imaging / production EHR in v1. |
+| NG6 | Auth, patient database, Docker in early phases. |
+| NG7 | Qiskit before Phase 3. |
 
 ---
 
 ## 5. Data requirements
 
-### 5.1 Initial dataset
+### 5.1 v1 dataset (Phase 1)
 
-**Source:** scikit-learn built-in Wisconsin Diagnostic Breast Cancer dataset.
+sklearn Wisconsin Diagnostic Breast Cancer (`load_breast_cancer(as_frame=True)`).
 
-**Required load pattern:**
+- `X = data.data` (30 numeric features).
+- `y_binary = (data.target == 0).astype(int)` → **1 = malignant**.
 
-```python
-from sklearn.datasets import load_breast_cancer
-data = load_breast_cancer(as_frame=True)
-X = data.data
-# Original target: 0 = malignant, 1 = benign
-y_binary = (data.target == 0).astype(int)
-# After conversion: 1 = malignant / disease present, 0 = benign / disease absent
-```
+**Why:** public, small, beginner-safe. Feature count will be reduced in Phase 2 for QML.
 
-| Property | Value |
-|----------|--------|
-| Type | Tabular, numeric features |
-| Feature count (raw) | 30 |
-| Task | Binary classification |
-| Positive class after conversion | Malignant (1) |
-| Identifiable patients | No (public toy/benchmark set) |
+### 5.2 Split
 
-**Why this dataset:** small, structured, easy to load, suitable for a beginner prototype. Later phases reduce features to **4–8** so a quantum model can use them (quantum circuits do not handle 30 raw features well in a beginner setup).
+`train_test_split(..., test_size=0.20, random_state=42, stratify=y_binary)`.
 
-### 5.2 Train/test split (Phase 1)
+### 5.3 Later public datasets (optional, separate experiments)
 
-```python
-train_test_split(
-    X,
-    y_binary,
-    test_size=0.20,
-    random_state=42,
-    stratify=y_binary,
-)
-```
+The brief mentions cancer, cardiovascular, neurological conditions. Allowed **only** as additional **public** tables, **one experiment each** (same pipeline, different files). Not a single symptom-to-disease oracle.
 
-- 80% training, 20% testing.
-- Stratify so both classes appear in both sets.
-- Same `random_state` everywhere it is supported (42).
-
-### 5.3 Future data
-
-Later optional public benchmarks may be added. Hospital data is out of scope unless a separate ethics and legal process exists — **not** part of this PRD.
+Hospital data stays out of scope without a new ethics/legal section.
 
 ---
 
-## 6. Phased functional requirements
-
-### 6.1 Phase 1 — Classical ML baseline (next implementation)
-
-**Objective:** A clean, reproducible classical baseline. No Qiskit. No UI. No API.
-
-The system shall:
-
-1. Load the breast cancer dataset as specified in Section 5.
-2. Inspect and print a beginner-friendly dataset summary (rows, columns, class counts).
-3. Convert the target so malignant is the positive class.
-4. Create the stratified 80/20 split (`random_state=42`).
-5. Preprocess correctly:
-   - `StandardScaler` for Logistic Regression only.
-   - Fit scaler on **training data only** (via a scikit-learn `Pipeline`).
-   - Random Forest: no scaler.
-6. Train:
-   - `LogisticRegression(max_iter=5000, random_state=42)` inside  
-     `Pipeline([("scaler", StandardScaler()), ("classifier", LogisticRegression(...))])`
-   - `RandomForestClassifier(n_estimators=300, random_state=42, class_weight="balanced")`
-7. Evaluate both models with: accuracy, precision, recall/sensitivity, specificity, F1, ROC-AUC, confusion matrix.
-8. Save visualizations:
-   - confusion matrix heatmap per model,
-   - ROC curve comparing both models,
-   - bar chart of main metrics.
-9. Save artifacts listed in Section 8.
-10. Print a beginner-friendly summary of which model scored better **on this test set** and why, without claiming clinical superiority.
-
-**Terminal entry point:**
+## 6. Hybrid architecture
 
 ```text
-python -m src.train_classical
+                    Biomedical public table
+                              |
+                    Data ingestion (D2)
+                              |
+              Classical pre-process + split (D3)
+                              |
+              Feature selection 4-8 cols (D9)
+                     /                  \
+                    /                    \
+         Classical LR / RF (D4)     Hybrid VQC / QSVC (D10)
+                    \                    /
+                     \                  /
+                   Shared evaluation (D7, D12)
+                              |
+                    Explainability (D14)
+                              |
+                      Optional UI (D16)
 ```
 
-**Packages:** pandas, numpy, scikit-learn, matplotlib, seaborn, joblib, pytest, jupyter.
+**Why hybrid (beginner):** a quantum circuit on a simulator cannot ingest 30–10,000 raw features. Classical steps **compress** the problem. The quantum model learns on a **small** vector. That matches near-term hardware.
 
-**Tests (minimum):**
+**Models (planned Phase 3):** Variational Quantum Classifier (VQC) and Quantum SVM (QSVC). Quantum neural nets optional later.
 
-1. Dataset loads successfully.
-2. Train/test split preserves both target classes.
-3. Metric evaluation returns values between 0 and 1.
-
-**Code quality:** functions (not one script dump), type hints where reasonable, docstrings on public functions, pathlib (no hard-coded absolute paths), auto-create output directories, useful error messages, beginner-readable.
-
-Phase 1 is **complete** only after the owner runs the pipeline and confirms with: **“Phase 1 is working.”**
-
-### 6.2 Phase 2 — Evaluation, feature selection, reproducibility
-
-Shall add (details to be refined when Phase 1 is done):
-
-- Stronger reporting and plot polish as needed.
-- Feature selection / reduction from 30 features to about **4–8** features for later QML.
-- Reproducibility notes (seeds, package versions, how to rerun).
-
-Do not start Phase 2 until Phase 1 is confirmed working.
-
-### 6.3 Phase 3 — Hybrid QML (VQC and QSVC)
-
-Shall add hybrid quantum-classical models using VQC and QSVC (Qiskit or agreed stack), on the reduced feature set, with the **same** split protocol and metrics as classical models.
-
-Shall **not** claim quantum is better by default. Report wins, losses, and ties honestly (including runtime and instability).
-
-Do not install Qiskit in Phase 1.
-
-### 6.4 Phase 4 — Explainability and reports
-
-Shall add explanations of *why* a model leaned toward a class (for example classical feature importance / SHAP-style methods if chosen) and a generated research-style report. Still not a clinical report.
-
-### 6.5 Phase 5 — Simple Streamlit UI
-
-Shall implement the frontend specified in [Section 10](#10-frontend--design-and-skeleton). Read-only exploration of existing results first; no hospital upload.
-
-### 6.6 Phase 6 — Optional FastAPI and deployment
-
-Optional. Only if explicitly requested. Not required for the research prototype to be valid.
+**Hardware:** Qiskit Aer (or equivalent) simulator on a laptop. Optional IBM/other backend later; not required for delivery.
 
 ---
 
-## 7. Metrics and fair comparison
+## 7. Phased functional requirements
 
-### 7.1 Positive class
+### 7.1 Phase 1 — Classical baseline (implemented)
 
-Malignant = positive (`1`).
+Logistic Regression: `Pipeline([("scaler", StandardScaler()), ("classifier", LogisticRegression(max_iter=5000, random_state=42))])`.
 
-- **True Positive:** malignant predicted malignant  
-- **False Negative:** malignant predicted benign  
-- **Sensitivity / Recall:** `TP / (TP + FN)`  
-- **Specificity:** `TN / (TN + FP)` from  
-  `tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()`
+Random Forest: `RandomForestClassifier(n_estimators=300, random_state=42, class_weight="balanced")` — no scaler.
 
-### 7.2 ROC-AUC
+Entry: `python -m src.train_classical`.
 
-Must use probabilities, not hard labels:
+Packages: pandas, numpy, scikit-learn, matplotlib, seaborn, joblib, pytest, jupyter.
 
-```python
-y_prob = model.predict_proba(X_test)[:, 1]
-```
+### 7.2 Phase 2 — Feature selection and reproducibility
 
-### 7.3 Fairness of comparison (all phases)
+Reduce to ~4–8 features. Freeze method and seeds. Keep classical metrics on both full and reduced sets so Phase 3 comparisons stay honest.
 
-To compare Model A and Model B:
+### 7.3 Phase 3 — Hybrid QML
+
+VQC + QSVC on the reduced set. Same test protocol. Record runtime. Do not claim quantum is better by default.
+
+### 7.4 Phase 4 — Explainability and reports
+
+Classical feature importance and/or SHAP. Document that QML explanations are limited. Write `outputs/reports/`.
+
+### 7.5 Phase 5 — Streamlit
+
+Section 10. Research comparison only.
+
+### 7.6 Phase 6 — Optional FastAPI / deploy
+
+Only if requested.
+
+---
+
+## 8. Metrics and fair comparison
+
+Positive class = disease present (`1`) on the active dataset.
+
+- Sensitivity / recall = `TP / (TP + FN)`
+- Specificity = `TN / (TN + FP)` from `confusion_matrix(...).ravel()`
+- ROC-AUC from `predict_proba(X_test)[:, 1]`
 
 | Rule | Why |
 |------|-----|
-| Same train/test split | Otherwise you are not comparing models; you are comparing luck |
-| Same label definition | Positive class must mean the same thing |
-| Same metric definitions | Recall vs accuracy arguments stay honest |
-| Same feature set when claiming a head-to-head | A 30-feature RF vs a 4-qubit VQC is a different experiment unless labeled as such |
-| Report limitations | Small public dataset ≠ clinical performance |
-
-Phase 3 must document when QML uses fewer features than the classical 30-feature baseline.
+| Same train/test split | Fairness |
+| Same label definition | Comparable metrics |
+| Document feature-count differences | 30-feature RF vs 4-qubit VQC is not the same experiment unless labeled |
+| Report runtime | Assignment asks computational efficiency |
+| Test-set scores only | Generalization (within this public set) |
 
 ---
 
-## 8. Technical architecture
+## 9. Technical architecture (code)
 
-### 8.1 Now (v0.1)
+### 9.1 Current (after Phase 1)
 
-```text
-qml/
-├── README.md    # beginner how-to
-└── PRD.md       # this document
-```
-
-### 8.2 Target after Phase 1 (planned)
-
-See README “Planned folder structure.” Core modules:
-
-| Module | Responsibility |
-|--------|----------------|
-| `src/utils.py` | Project root, pathlib paths, create output folders |
-| `src/data_loader.py` | Load dataset, relabel target, inspect |
+| Module | Role |
+|--------|------|
+| `src/utils.py` | Paths, folders, disclaimers |
+| `src/data_loader.py` | Load + relabel + inspect |
 | `src/preprocessing.py` | Stratified split |
-| `src/evaluate.py` | Metrics, plots, CSV, beginner summary text |
-| `src/train_classical.py` | CLI entry: train, save `.joblib`, evaluate |
+| `src/evaluate.py` | Metrics, plots, CSV, summary |
+| `src/train_classical.py` | CLI train/save |
 
-Random Forest is **not** scaled. Logistic Regression **is** scaled inside a Pipeline.
-
-### 8.3 Planned Phase 1 artifacts
+### 9.2 Phase 1 artifacts
 
 | File | Description |
 |------|-------------|
 | `outputs/metrics/classical_model_metrics.csv` | Metric table |
-| `outputs/figures/logistic_regression_confusion_matrix.png` | LR confusion heatmap |
-| `outputs/figures/random_forest_confusion_matrix.png` | RF confusion heatmap |
-| `outputs/figures/roc_curve_comparison.png` | Both models on one ROC plot |
-| `outputs/figures/model_metric_comparison.png` | Bar chart of main metrics |
-| `models/logistic_regression_model.joblib` | Saved LR pipeline |
-| `models/random_forest_model.joblib` | Saved RF |
+| `outputs/figures/logistic_regression_confusion_matrix.png` | LR heatmap |
+| `outputs/figures/random_forest_confusion_matrix.png` | RF heatmap |
+| `outputs/figures/roc_curve_comparison.png` | ROC |
+| `outputs/figures/model_metric_comparison.png` | Bar chart |
+| `models/logistic_regression_model.joblib` | LR pipeline |
+| `models/random_forest_model.joblib` | RF |
 
-### 8.4 Later architecture (not now)
+### 9.3 Later
 
-- Phase 3: additional `src` modules for QML; Qiskit in `requirements` only then.  
-- Phase 5: Streamlit app, likely `app/` or `src/app.py`.  
-- Phase 6: optional FastAPI; still no requirement for a database in the research prototype.
-
----
-
-## 9. Success criteria
-
-### 9.1 Documentation (this version)
-
-- [x] README exists and is beginner-friendly.  
-- [x] PRD exists, includes safety rules, phases, and a frontend section.  
-- [ ] Owner has read both files and agrees they match the intended project.
-
-### 9.2 Phase 1 software (future)
-
-- [ ] `python -m src.train_classical` runs from the project root.  
-- [ ] All artifact files in Section 8.3 exist after a run.  
-- [ ] Tests pass (`pytest`).  
-- [ ] Disclaimer text appears in printed output.  
-- [ ] Owner confirms: **“Phase 1 is working.”**
-
-### 9.3 Product-level (later)
-
-- Classical and QML results can be compared on agreed metrics without changing the label definition.  
-- No screen or report presents a diagnosis.
+Phase 3: `src` QML modules + Qiskit in requirements. Phase 5: Streamlit. Phase 6: optional API.
 
 ---
 
@@ -366,210 +304,112 @@ Random Forest is **not** scaled. Logistic Regression **is** scaled inside a Pipe
 
 **Status: specification only. Do not implement until Phase 5.**
 
-This section tells a future implementer **how to design** the UI and what the **basic skeleton** is. It does not authorize building React, Streamlit, or any webpage in Phase 1.
+### 10.1 Purpose
 
-### 10.1 Purpose of the UI
+Show the **research platform**: data → classical vs hybrid QML → metrics. Not a clinic.
 
-The UI exists so a beginner can **see** the research comparison without running Python in their head.
+Must: disclaimer first; comparison-first layout; empty states if QML not trained.
 
-It must:
-
-- show disclaimers first,
-- show classical (and later quantum) metrics side by side,
-- explain plots in short sentences,
-- make it obvious this is a classroom/research tool.
-
-It must **not**:
-
-- look like a hospital EHR or emergency dashboard,
-- accept real patient records,
-- print “You have cancer” / “You are safe,”
-- hide uncertainty or test-set limitations.
+Must not: hospital EHR look; patient file upload; “You have cancer”; fake quantum scores.
 
 ### 10.2 Design principles
 
-| Principle | What to do |
-|-----------|------------|
-| **Safety first** | Persistent banner: educational only; not a medical device; research risk classification |
-| **Comparison first** | The main page is “Model A vs Model B,” not a single scary score |
-| **Plain language** | Tooltips or one-line definitions next to Accuracy, Recall, etc. |
-| **Academic, calm visual tone** | Neutral background, readable type, no red siren “ALERT” styling for predicted class |
-| **One primary action per page** | Example: “Show classical results” — not ten competing buttons |
-| **Color is not the only signal** | Confusion matrices and ROC still readable if printed in grayscale |
-| **Honest empty states** | If Phase 3 is not run yet, say “Quantum results not generated yet” instead of fake numbers |
+Safety banner on every page. Plain language. Calm academic visual tone. Color not the only signal.
 
-### 10.3 Tool choice (Phase 5)
+### 10.3 Tool
 
-**Streamlit** — Python-only, fits this repo, no separate JavaScript app in the first UI.
+**Streamlit.** No React/auth/cloud in Phase 5.
 
-Out of scope for Phase 5: custom React SPA, authentication, cloud hosting, payment, user accounts.
-
-### 10.4 Information architecture (sitemap)
+### 10.4 Sitemap
 
 ```text
-Q-Care Detect (Streamlit)
-├── Home
-├── Data overview
-├── Classical results
-├── QML comparison      (visible but disabled or placeholder until Phase 3+5)
-├── How to read metrics
-└── About and limits
+Home
+Data overview
+Classical results
+QML comparison (placeholder until Phase 3)
+How to read metrics
+About and limits
 ```
 
-| Page | Job | Must show disclaimer? |
-|------|-----|------------------------|
-| **Home** | What the project is, current phase, link to run instructions | Yes |
-| **Data overview** | Dataset name, row/column counts, class balance, “public benchmark only,” label conversion explained | Yes |
-| **Classical results** | LR vs RF cards, metrics table, two confusion matrices, shared ROC, bar chart | Yes |
-| **QML comparison** | Same metric layout for VQC / QSVC vs classical; note feature-count differences | Yes |
-| **How to read metrics** | Beginner definitions (same spirit as README) | Yes |
-| **About and limits** | Not for clinical use; small dataset; no quantum-auto-win claim | Yes |
+Disclaimer on all pages.
 
-### 10.5 Page skeleton — Home
+### 10.5 Home wireframe
 
-```text
-+--------------------------------------------------+
-| BANNER: Educational research only. Not a device. |
-| Research risk classification — not for clinical  |
-| use.                                             |
-+--------------------------------------------------+
-| Q-Care Detect                                    |
-| Short paragraph: compare classical vs QML.       |
-| Current phase badge: e.g. "Phase 1 planned"      |
-| [Open data overview]  [Open classical results]   |
-| Footer: never used for diagnosis.                |
-+--------------------------------------------------+
-```
+Banner (educational; not a device; research risk classification). Product name. One paragraph: hybrid QML **research** platform for early disease-**risk** benchmarks. Links to data and results. Footer: not for clinical decisions.
 
-### 10.6 Page skeleton — Classical results (main comparison layout)
+### 10.6 Classical / QML comparison layout
 
-This is the primary wireframe for Phase 5.
+Two (or more) model cards: accuracy, precision, recall, specificity, F1, ROC-AUC. Confusion matrices. Shared ROC. Bar chart. Caption: public test set only.
 
-```text
-+----------------------------------------------------------+
-| BANNER (always visible while scrolling if Streamlit      |
-| allows; otherwise repeat at top of page)                 |
-+----------------------------------------------------------+
-| Title: Classical model comparison                        |
-| Subtitle: Wisconsin Diagnostic Breast Cancer (public)    |
-| Caption: Test set only. Not for clinical use.            |
-+---------------------------+------------------------------+
-| Logistic Regression       | Random Forest                |
-| Accuracy …                | Accuracy …                   |
-| Precision …               | Precision …                  |
-| Recall …                  | Recall …                     |
-| Specificity …             | Specificity …                |
-| F1 …                      | F1 …                         |
-| ROC-AUC …                 | ROC-AUC …                    |
-+---------------------------+------------------------------+
-| Confusion matrix (LR)     | Confusion matrix (RF)        |
-+---------------------------+------------------------------+
-| ROC curve (both models, one plot)                        |
-| Metric bar chart                                         |
-+----------------------------------------------------------+
-| Beginner note: which model looked stronger on THIS       |
-| test split and which metric you should not over-trust.   |
-+----------------------------------------------------------+
-```
+### 10.7 Components
 
-### 10.7 Page skeleton — Data overview
+Required: disclaimer, metric cards, CSV-backed table, plot images.  
+Forbidden: hospital CSV upload, login, “diagnose this patient.”
 
-- Dataset official name and sklearn source.  
-- Number of samples and features.  
-- Count of malignant vs benign **after** relabeling.  
-- Sentence: original sklearn `0` was malignant; we mapped malignant to `1`.  
-- No patient IDs (there are none).  
-- Optional: simple histogram or table of a few feature names — educational, not diagnostic.
+### 10.8 Copy
 
-### 10.8 Component checklist (Phase 5)
+Required: educational disclaimer; “Research risk classification - not for clinical use.”; scores are not clinical performance.
 
-| Component | Required |
-|-----------|----------|
-| Disclaimer banner | Yes, all pages |
-| “Research risk classification — not for clinical use.” | Yes, on every results view |
-| Metric cards (one per model) | Yes |
-| Metrics table (CSV-backed once Phase 1 exists) | Yes |
-| Confusion matrix images | Yes |
-| ROC comparison image | Yes |
-| Metric bar chart | Yes |
-| Download metrics CSV | Nice-to-have |
-| File uploader for hospital CSV | **No** |
-| Login | **No** |
-| “Diagnose this patient” form | **No** |
+Forbidden: diagnose, treatment plan, patient portal, “quantum proven better,” SAFE/CANCER stamps.
 
-### 10.9 Copy rules for the UI
+### 10.9 Visual and interaction
 
-**Required snippets**
+Light theme, wide layout, captions on images. Load `outputs/` artifacts; if missing, tell the user which CLI to run. Do not retrain on every rerun. No silent network exfiltration.
 
-- “This project is for educational and research purposes only. It is not a medical device and must not be used for clinical diagnosis or treatment decisions.”
-- “Research risk classification — not for clinical use.”
-- “Scores are computed on a held-out public test split. They are not clinical performance.”
+### 10.10 Frontend out of scope
 
-**Forbidden UI copy**
+Auth, patient DB, cloud (unless Phase 6), native mobile, clinician submit-a-case workflows.
 
-- Diagnose, diagnosis, treatment plan, prescribe  
-- Patient portal, medical record, upload hospital data  
-- “Quantum proven better,” “replaces a doctor,” “FDA cleared”  
-- Green/red “SAFE” / “CANCER” stamps on a single prediction as if it were a lab result
+### 10.11 Frontend success
 
-**Tone:** calm, specific, slightly academic. Short sentences. Define jargon next to the first use.
+User understands this is not diagnostic. Can compare classical vs (later) QML with the same metric names.
 
-### 10.10 Visual design notes (basic)
-
-- **Typography:** large enough body text; avoid tiny metric footnotes as the only disclaimer.  
-- **Layout:** generous spacing; two columns on desktop for model cards; stack on a narrow window.  
-- **Plots:** reuse Phase 1 PNGs first (simplest). Interactive Plotly can wait.  
-- **Theme:** light, neutral; one accent color for charts — not blood-red “clinical alert” palettes.  
-- **Accessibility:** text alternatives for plots (“Confusion matrix for logistic regression on the test set”). Do not encode class only as color.
-
-### 10.11 Interaction rules
-
-- Default page: Home.  
-- Classical results should load **saved artifacts** from `outputs/` and `models/` when they exist; if missing, show: “Run `python -m src.train_classical` first.”  
-- Do not retrain a heavy model on every Streamlit rerun unless the user clicks an explicit “Retrain” (Phase 5 can stay read-only).  
-- No hidden network calls to send data off the machine in Phase 5.
-
-### 10.12 What frontend is explicitly out of scope
-
-- Authentication and user accounts  
-- Databases of patients  
-- Cloud deployment (Phase 6 is optional and separate)  
-- Mobile native apps  
-- Real-time camera or wearable input  
-- Any workflow that looks like submitting a case to a clinician
-
-### 10.13 Frontend success criteria (Phase 5 only)
-
-- A new user can open Streamlit, read the disclaimer, and understand they are not using a diagnostic product.  
-- They can compare LR vs RF on the same screen.  
-- Later, they can compare classical vs QML with the same metric names.  
-- No page omits the research-use label.
+Full generation prompt: [task.md](task.md).
 
 ---
 
-## 11. Open questions (decide later, not in Phase 1)
+## 11. Success criteria
+
+### 11.1 Now
+
+- [x] README + PRD match the hybrid QML **platform** assignment, with safety mapping.
+- [x] Delivery table exists.
+- [x] Phase 1 CLI, artifacts, tests.
+
+### 11.2 Assignment-complete (later)
+
+- [ ] D9–D13 (feature select + QML + benchmark on simulator).
+- [ ] D14–D15 (explainability + report).
+- [ ] D16 (UI) recommended for “platform.”
+- [ ] No surface presents a diagnosis.
+
+---
+
+## 12. Open questions
 
 | Topic | Question |
 |-------|----------|
-| Feature selection method | Which algorithm reduces 30 features to 4–8 (mutual information, model-based importance, domain list)? |
-| QML backend | Exact Qiskit / Aer versions and simulator vs hardware (hardware not required for the prototype). |
-| Class weight on Logistic Regression | Phase 1 spec does not set `class_weight` on LR; only RF is `"balanced"`. Revisit in Phase 2 if class imbalance analysis says so. |
-| Streamlit hosting | Local only vs optional later deploy (Phase 6). |
-| Extra datasets | Whether to add a second public dataset after breast cancer. |
+| Feature selection | Mutual information vs model importance vs fixed clinical subset |
+| QML stack | Qiskit version; Aer only vs optional hardware |
+| Extra datasets | Which public cardio/neuro set, if any |
+| QNN | After VQC/QSVC or skip |
+| Regression | Not unless a public regression benchmark is added |
 
 ---
 
-## 12. Document history
+## 13. Document history
 
 | Version | Date | Change |
 |---------|------|--------|
-| 0.1 | 2026-08-28 | Initial PRD: full roadmap, safety rules, Phase 1 requirements, frontend design skeleton. Software not implemented. |
+| 0.1 | 2026-08-28 | Initial PRD (classical-first teaching project). |
+| 0.2 | 2026-08-29 | Full assignment problem statement; delivery table; hybrid platform architecture; Phase 1 marked done. |
 
 ---
 
-## 13. Next action
+## 14. Next action
 
-1. Read [README.md](README.md) and this PRD.  
-2. When ready for code, implement **Phase 1 only** (classical baseline).  
-3. Do not start Phase 2 or Phase 3 until you confirm: **“Phase 1 is working.”**  
-4. Do not build the frontend until Phase 5 is explicitly started.
+1. Keep using Phase 1: `python -m src.train_classical`.  
+2. Next **code** phase: **Phase 2** (feature selection for QML).  
+3. Do not install Qiskit until Phase 3.  
+4. Do not build the frontend until Phase 5.  
+5. Do not add a symptom-to-disease diagnostic UI.
