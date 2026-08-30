@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QureSense | Classical vs Hybrid Quantum-Classical Benchmark Evaluation</title>
+  
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- TOP CONTROL BAR: Viewport Simulator & Navigation Switcher -->
+  <header class="top-control-bar">
+    <div class="brand-badge">
+      <div class="brand-logo">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span>QureSense</span>
+      </div>
+      <span class="phase-pill">Phase 1: Benchmark Evaluation</span>
+    </div>
+
+    <!-- Viewport Switcher -->
+    <div class="viewport-switcher">
+      <button class="vp-btn active" data-mode="web">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <span>Web Desktop View (~1200px)</span>
+      </button>
+      <button class="vp-btn" data-mode="mobile">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+        <span>Mobile View (~375px)</span>
+      </button>
+      <button class="vp-btn" data-mode="dual">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span>Side-by-Side Dual View</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- STAGE CONTAINER FOR VIEWPORT SIMULATOR -->
+  <main class="stage-container" id="stage-container">
+
+    <!-- ==========================================================================
+         1. DESKTOP WEB VIEW CONTAINER (~1200px)
+         ========================================================================== -->
+    <div class="desktop-view-container" id="desktop-container">
+      <div class="app-frame">
+        
+        <!-- Persistent Required Disclaimer Banner (Verbatim) -->
+        <div class="disclaimer-banner">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <span>This project is for educational and research purposes only. It is not a medical device and must not be used for clinical diagnosis or treatment decisions.</span>
+        </div>
+
+        <div class="app-body">
+          <!-- Desktop Sidebar Navigation -->
+          <aside class="desktop-sidebar">
+            <div class="sidebar-brand">
+              <h2>QureSense</h2>
+              <p>Academic QML Benchmark</p>
+            </div>
+            
+            <ul class="nav-menu">
+              <li>
+                <button class="nav-item-btn active" data-page="home" data-navigate="home">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                  <span>Home</span>
+                </button>
+              </li>
+              <li>
+                <button class="nav-item-btn" data-page="data_overview" data-navigate="data_overview">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                  <span>Data Overview</span>
+                </button>
+              </li>
+              <li>
+                <button class="nav-item-btn" data-page="classical_results" data-navigate="classical_results">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                  <span>Classical Results</span>
+                </button>
+              </li>
+              <li>
+                <button class="nav-item-btn" data-page="qml_comparison" data-navigate="qml_comparison">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  <span>QML Comparison</span>
+                </button>
+              </li>
+              <li>
+                <button class="nav-item-btn" data-page="simulator" data-navigate="simulator">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                  <span>Feature Simulator</span>
+                </button>
+              </li>
+              <li>
+                <button class="nav-item-btn" data-page="glossary" data-navigate="glossary">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                  <span>How to Read Metrics</span>
+                </button>
+              </li>
+              <li>
+                <button class="nav-item-btn" data-page="about" data-navigate="about">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <span>About & Limits</span>
+                </button>
+              </li>
+            </ul>
+          </aside>
+
+          <!-- Desktop Dynamic Content Area -->
+          <div class="main-content" id="desktop-content-area">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==========================================================================
+         2. MOBILE VIEW SIMULATOR CONTAINER (~375px phone layout)
+         ========================================================================== -->
+    <div class="mobile-view-container" id="mobile-container" style="display: none;">
+      
+      <!-- Phone Top Status Notch Simulator -->
+      <div class="phone-header-notch">
+        <span>9:41</span>
+        <div class="notch-pill"></div>
+        <span>100%</span>
+      </div>
+
+      <div class="app-frame mobile-frame">
+        
+        <!-- Persistent Required Disclaimer Banner (Verbatim) -->
+        <div class="disclaimer-banner">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <span>This project is for educational and research purposes only. It is not a medical device and must not be used for clinical diagnosis or treatment decisions.</span>
+        </div>
+
+        <!-- Mobile Top Navigation Bar -->
+        <div class="mobile-nav-bar">
+          <div class="mobile-nav-title">
+            <svg width="20" height="20" fill="none" stroke="#4f46e5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span>QureSense</span>
+          </div>
+          <button class="mobile-menu-trigger" aria-label="Toggle menu">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+        </div>
+
+        <!-- Mobile Collapsible Navigation Drawer Dropdown -->
+        <div class="mobile-nav-drawer">
+          <button class="nav-item-btn" data-page="home" data-navigate="home">Home</button>
+          <button class="nav-item-btn" data-page="data_overview" data-navigate="data_overview">Data Overview</button>
+          <button class="nav-item-btn" data-page="classical_results" data-navigate="classical_results">Classical Results</button>
+          <button class="nav-item-btn" data-page="qml_comparison" data-navigate="qml_comparison">QML Comparison</button>
+          <button class="nav-item-btn" data-page="simulator" data-navigate="simulator">Feature Simulator</button>
+          <button class="nav-item-btn" data-page="glossary" data-navigate="glossary">How to Read Metrics</button>
+          <button class="nav-item-btn" data-page="about" data-navigate="about">About & Limits</button>
+        </div>
+
+        <!-- Mobile Main Content Area (Scrollable Stacked Single Column) -->
+        <div class="main-content" id="mobile-content-area">
+          <!-- Rendered by app.js -->
+        </div>
+
+        <!-- Mobile Bottom Tab Bar -->
+        <nav class="mobile-bottom-tabs">
+          <button class="tab-btn active" data-page="home" data-navigate="home">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            <span>Home</span>
+          </button>
+          <button class="tab-btn" data-page="data_overview" data-navigate="data_overview">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+            <span>Data</span>
+          </button>
+          <button class="tab-btn" data-page="classical_results" data-navigate="classical_results">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span>Classical</span>
+          </button>
+          <button class="tab-btn" data-page="qml_comparison" data-navigate="qml_comparison">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span>QML</span>
+          </button>
+          <button class="tab-btn" data-page="simulator" data-navigate="simulator">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+            <span>Sim</span>
+          </button>
+          <button class="tab-btn" data-page="about" data-navigate="about">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>About</span>
+          </button>
+        </nav>
+
+      </div>
+    </div>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
