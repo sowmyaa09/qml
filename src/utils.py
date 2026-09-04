@@ -37,6 +37,11 @@ def get_metrics_dir() -> Path:
     return get_project_root() / "outputs" / "metrics"
 
 
+def get_reports_dir() -> Path:
+    """Folder where markdown/json research notes are saved."""
+    return get_project_root() / "outputs" / "reports"
+
+
 def ensure_output_directories() -> None:
     """Create models/ and outputs/ folders if they do not exist yet."""
     for directory in (

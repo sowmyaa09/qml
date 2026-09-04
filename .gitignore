@@ -18,6 +18,10 @@ build/
 .coverage
 htmlcov/
 
+# Secrets
+.env
+.env.local
+
 # OS / editor
 .DS_Store
 Thumbs.db
@@ -26,7 +30,14 @@ Thumbs.db
 
 # Generated Phase 1 artifacts (folders stay via .gitkeep)
 models/*.joblib
+models/*.pt
 outputs/figures/*.png
 outputs/metrics/*.csv
 outputs/reports/*
 !outputs/reports/.gitkeep
+
+# Local data copies (Kaggle cache is preferred)
+data/raw/**
+data/processed/**
+!data/raw/.gitkeep
+!data/processed/.gitkeep

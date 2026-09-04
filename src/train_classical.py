@@ -53,37 +53,66 @@ def build_random_forest() -> RandomForestClassifier:
     )
 
 
-def train_and_save_models(x_train, y_train) -> dict:
-    """Fit both models and write ``.joblib`` files to ``models/``."""
+def build_compact_random_forest() -> RandomForestClassifier:
+    """Smaller forest for large tables so the ``.joblib`` file stays usable."""
+    return RandomForestClassifier(
+        n_estimators=80,
+        max_depth=12,
+        min_samples_leaf=50,
+        random_state=RANDOM_STATE,
+        class_weight="balanced",
+        n_jobs=-1,
+    )
+
+
+def train_and_save_models(
+    x_train,
+    y_train,
+    *,
+    name_prefix: str = "",
+    forest: RandomForestClassifier | None = None,
+) -> dict:
+    """Fit both models and write compressed ``.joblib`` files to ``models/``.
+
+    ``name_prefix`` avoids overwriting the breast-cancer files, e.g. ``diabetes``.
+    """
     ensure_output_directories()
     models_dir = get_models_dir()
+    prefix = f"{name_prefix}_" if name_prefix else ""
 
     logistic = build_logistic_regression_pipeline()
-    forest = build_random_forest()
+    forest_model = forest if forest is not None else build_random_forest()
 
     logistic.fit(x_train, y_train)
-    forest.fit(x_train, y_train)
+    forest_model.fit(x_train, y_train)
 
-    lr_path = models_dir / "logistic_regression_model.joblib"
-    rf_path = models_dir / "random_forest_model.joblib"
-    joblib.dump(logistic, lr_path)
-    joblib.dump(forest, rf_path)
-    print(f"Saved {lr_path}")
-    print(f"Saved {rf_path}")
+    lr_path = models_dir / f"{prefix}logistic_regression_model.joblib"
+    rf_path = models_dir / f"{prefix}random_forest_model.joblib"
+    joblib.dump(logistic, lr_path, compress=3)
+    joblib.dump(forest_model, rf_path, compress=3)
+    print(f"Saved {lr_path} ({lr_path.stat().st_size / 1_000_000:.1f} MB)", flush=True)
+    print(f"Saved {rf_path} ({rf_path.stat().st_size / 1_000_000:.1f} MB)", flush=True)
 
-    return {LR_MODEL_NAME: logistic, RF_MODEL_NAME: forest}
+    return {LR_MODEL_NAME: logistic, RF_MODEL_NAME: forest_model}
 
 
 def predict_with_probabilities(model, x_test):
-    """Return class labels and P(malignant) for ROC-AUC."""
-    if not hasattr(model, "predict_proba"):
-        raise RuntimeError(
-            f"{type(model).__name__} has no predict_proba. "
-            "ROC-AUC needs probabilities, not only 0/1 predictions."
-        )
+    """Return class labels and a ranking score for class 1 (ROC-AUC)."""
     y_pred = model.predict(x_test)
-    y_prob = model.predict_proba(x_test)[:, 1]
-    return y_pred, y_prob
+    if hasattr(model, "predict_proba"):
+        try:
+            proba = model.predict_proba(x_test)
+            if getattr(proba, "ndim", 1) == 2 and proba.shape[1] >= 2:
+                return y_pred, proba[:, 1]
+        except Exception:
+            pass
+    if hasattr(model, "decision_function"):
+        scores = model.decision_function(x_test)
+        return y_pred, scores
+    raise RuntimeError(
+        f"{type(model).__name__} has neither usable predict_proba nor "
+        "decision_function. ROC-AUC needs a ranking score for class 1."
+    )
 
 
 def main() -> int:
@@ -130,7 +159,7 @@ def main() -> int:
             print(f"    {key}: {value:.4f}")
 
     print()
-    print(beginner_summary(metrics_by_model))
+    print(beginner_summary(metrics_by_model, positive_name="malignant"))
     print()
     print("Wrote outputs/metrics/classical_model_metrics.csv")
     print("Wrote PNG plots under outputs/figures/")

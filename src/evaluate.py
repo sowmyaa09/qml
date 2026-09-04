@@ -191,7 +191,11 @@ def save_metrics_csv(
     return output_path
 
 
-def beginner_summary(metrics_by_model: dict[str, dict[str, float]]) -> str:
+def beginner_summary(
+    metrics_by_model: dict[str, dict[str, float]],
+    *,
+    positive_name: str = "positive-class",
+) -> str:
     """Explain which model looked stronger on this test set, in plain language."""
     if len(metrics_by_model) < 2:
         names = list(metrics_by_model)
@@ -211,7 +215,7 @@ def beginner_summary(metrics_by_model: dict[str, dict[str, float]]) -> str:
         "",
         "Beginner summary (this public test split only - not a clinical ranking)",
         "",
-        f"On recall (catching malignant rows), {best_name} scored {best['recall']:.3f} "
+        f"On recall (catching {positive_name} rows), {best_name} scored {best['recall']:.3f} "
         f"and {other_name} scored {other['recall']:.3f}.",
         f"On F1 (balance of precision and recall), {best_name} scored {best['f1']:.3f} "
         f"and {other_name} scored {other['f1']:.3f}.",
@@ -221,7 +225,7 @@ def beginner_summary(metrics_by_model: dict[str, dict[str, float]]) -> str:
         f"For this research comparison we highlight {best_name} because it did at "
         "least as well on recall, then F1, then ROC-AUC. That does not mean it is "
         "a medical test. Accuracy alone can look high while still missing "
-        "malignant cases, so we look at several metrics.",
+        f"{positive_name} cases, so we look at several metrics.",
         "",
         "A later quantum model is not assumed to beat these numbers.",
     ]
@@ -234,15 +238,17 @@ def evaluate_models(
     probabilities_by_model: dict[str, np.ndarray],
     *,
     save_plots: bool = True,
+    artifact_prefix: str = "",
 ) -> dict[str, dict[str, float]]:
     """Compute metrics for each model and optionally write PNG + CSV files."""
     figures = get_figures_dir()
     y_true_arr = np.asarray(y_true)
     metrics_by_model: dict[str, dict[str, float]] = {}
+    prefix = f"{artifact_prefix}_" if artifact_prefix else ""
 
     file_stems = {
-        "Logistic Regression": "logistic_regression_confusion_matrix.png",
-        "Random Forest": "random_forest_confusion_matrix.png",
+        "Logistic Regression": f"{prefix}logistic_regression_confusion_matrix.png",
+        "Random Forest": f"{prefix}random_forest_confusion_matrix.png",
     }
 
     for name, y_pred in predictions_by_model.items():
@@ -253,7 +259,7 @@ def evaluate_models(
         )
         if save_plots:
             stem = file_stems.get(
-                name, f"{name.lower().replace(' ', '_')}_confusion_matrix.png"
+                name, f"{prefix}{name.lower().replace(' ', '_')}_confusion_matrix.png"
             )
             plot_confusion_matrix(y_true_arr, y_pred_arr, name, figures / stem)
 
@@ -261,12 +267,13 @@ def evaluate_models(
         plot_roc_comparison(
             y_true_arr,
             {k: np.asarray(v) for k, v in probabilities_by_model.items()},
-            figures / "roc_curve_comparison.png",
+            figures / f"{prefix}roc_curve_comparison.png",
         )
         plot_metric_bars(
             metrics_by_model,
-            figures / "model_metric_comparison.png",
+            figures / f"{prefix}model_metric_comparison.png",
         )
-        save_metrics_csv(metrics_by_model)
+        csv_name = f"{prefix}classical_model_metrics.csv" if prefix else "classical_model_metrics.csv"
+        save_metrics_csv(metrics_by_model, get_metrics_dir() / csv_name)
 
     return metrics_by_model
