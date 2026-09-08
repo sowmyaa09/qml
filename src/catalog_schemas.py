@@ -113,6 +113,58 @@ STROKE_RAW_FEATURES = (
     "smoking_status",
 )
 
+COIMBRA_FEATURES = (
+    "Age",
+    "BMI",
+    "Glucose",
+    "Insulin",
+    "HOMA",
+    "Leptin",
+    "Adiponectin",
+    "Resistin",
+    "MCP.1",
+)
+
+FRAMINGHAM_FEATURES = (
+    "male",
+    "age",
+    "education",
+    "currentSmoker",
+    "cigsPerDay",
+    "BPMeds",
+    "prevalentStroke",
+    "prevalentHyp",
+    "diabetes",
+    "totChol",
+    "sysBP",
+    "diaBP",
+    "BMI",
+    "heartRate",
+    "glucose",
+)
+
+HEPATITIS_FEATURES = (
+    "Age",
+    "Sex",
+    "Steroid",
+    "Antivirals",
+    "Fatigue",
+    "Malaise",
+    "Anorexia",
+    "Liver Big",
+    "Liver Firm",
+    "Spleen Palpable",
+    "Spiders",
+    "Ascites",
+    "Varices",
+    "Bilirubin",
+    "Alk Phosphate",
+    "Sgot",
+    "Albumin",
+    "Protime",
+    "Histology",
+)
+
 SCHEMAS: dict[str, CatalogSchema] = {
     "wisconsin": CatalogSchema(
         key="wisconsin",
@@ -183,6 +235,45 @@ SCHEMAS: dict[str, CatalogSchema] = {
         features=STROKE_RAW_FEATURES,
         min_filled=7,
         notes="Categoricals are dummy-encoded to match the saved model.",
+    ),
+    "coimbra": CatalogSchema(
+        key="coimbra",
+        title="Breast Cancer Coimbra (blood markers)",
+        positive_label="patient class on this UCI table only",
+        specialty_hint=(
+            "Public blood-marker benchmark, not an FNA and not a diagnosis. "
+            "See a licensed clinician. We do not name doctors."
+        ),
+        model_prefix="coimbra",
+        features=COIMBRA_FEATURES,
+        min_filled=9,
+        notes="All 9 Coimbra fields. Separate from Wisconsin FNA.",
+    ),
+    "framingham": CatalogSchema(
+        key="framingham",
+        title="Framingham 10-year CHD table",
+        positive_label="TenYearCHD=1 in this table only",
+        specialty_hint=(
+            "Public teaching subset of risk factors, not a clinic visit. "
+            "Cardiology is the usual *domain*. Seek licensed local care; we do not rank doctors."
+        ),
+        model_prefix="framingham",
+        features=FRAMINGHAM_FEATURES,
+        min_filled=10,
+        notes="Classic epidemiology columns.",
+    ),
+    "hepatitis": CatalogSchema(
+        key="hepatitis",
+        title="UCI hepatitis table",
+        positive_label="die class on this tiny UCI table only",
+        specialty_hint=(
+            "Tiny public table, not a liver work-up. "
+            "Hepatology/GI is the usual *domain*. See a licensed clinician. We do not name doctors."
+        ),
+        model_prefix="hepatitis",
+        features=HEPATITIS_FEATURES,
+        min_filled=10,
+        notes="UCI encoding: Class 1=die, 2=live.",
     ),
 }
 

@@ -34,10 +34,13 @@ PAGES = (
     "Data overview",
     "Classical results",
     "QML comparison",
+    "Decision support",
+    "Explainability",
     "Research notes mapper",
     "Extra research tables",
     "Image experiments",
     "How to read metrics",
+    "Demo script",
     "About and limits",
 )
 
@@ -183,8 +186,9 @@ def page_qml() -> None:
     st.title("QML comparison")
     st.caption(RESEARCH_DISCLAIMER)
     st.markdown(
-        "Hybrid models (VQC, QSVC) run on a **simulator** using the Phase 2 "
-        "selected columns. Quantum is **not** assumed to win."
+        "Hybrid models (VQC, QSVC) run on a **classical simulator** using the "
+        "Phase 2 selected columns. An **RBF SVM** on the same columns is the "
+        "fair kernel baseline. Quantum is **not** assumed to win."
     )
     frame = load_metrics_csv("qml_vs_classical_metrics.csv")
     if frame is None:
@@ -194,19 +198,311 @@ def page_qml() -> None:
     st.dataframe(frame, use_container_width=True)
     show_png("qml_roc_curve_comparison.png")
     show_png("qml_model_metric_comparison.png")
+    show_png("qml_vqc_optimizer_trace.png")
+    show_png("qml_qnn_optimizer_trace.png")
+
+    st.subheader("Is the gap real? (confidence intervals and paired tests)")
+    intervals = load_metrics_csv("qml_significance_bootstrap.csv")
+    pairs = load_metrics_csv("qml_significance_pairs.csv")
+    if intervals is None or pairs is None:
+        st.info(
+            "Run `python -m src.train_qml_significance` for bootstrap intervals, "
+            "McNemar and DeLong tests."
+        )
+    else:
+        show_png("qml_significance_intervals.png")
+        st.dataframe(
+            intervals[intervals["metric"] == "f1"].reset_index(drop=True),
+            use_container_width=True,
+        )
+        st.dataframe(pairs, use_container_width=True)
+        undecided = int(pairs["f1_ci_crosses_zero"].sum())
+        st.markdown(
+            f"**{undecided} of {len(pairs)}** quantum-vs-classical pairs have an F1 "
+            "difference interval that includes zero, meaning this split cannot "
+            "separate them. `mcnemar_p` uses only the rows where exactly one model "
+            "is correct; `delong_p` compares the two ROC-AUCs on the same rows."
+        )
+        cv = load_metrics_csv("qml_repeated_cv.csv")
+        if cv is not None:
+            st.markdown("**Repeated stratified cross-validation (5 x 5 folds)**")
+            st.dataframe(cv, use_container_width=True)
+            st.caption(
+                "Clipping, selection and scaling are refit inside every fold. No "
+                "p-value is computed from these folds: they share training rows, "
+                "so a naive paired test would be over-confident."
+            )
+        report = _paths()["reports"] / "phase3_significance.md"
+        if report.is_file():
+            with st.expander("Significance report"):
+                st.markdown(report.read_text(encoding="utf-8"))
+
+    ablation = load_metrics_csv("qml_ablation_k.csv")
+    st.subheader("Ablation — qubits vs quantum-kernel quality")
+    if ablation is None:
+        st.info("Run `python -m src.train_qml_ablation` to sweep k = 4, 6, 8.")
+    else:
+        show_png("qml_ablation_k.png")
+        st.dataframe(ablation, use_container_width=True)
+        st.caption(
+            "One qubit per selected column. The RBF SVM row is the control: if a "
+            "classical kernel matches QSVC at the same k, the quantum kernel is "
+            "not adding value here."
+        )
+
+    second = sorted(_paths()["metrics"].glob("*_qml_metrics.csv"))
+    if second:
+        st.subheader("Second hybrid experiment (separate table)")
+        pick = st.selectbox("Hybrid table", [p.name for p in second])
+        st.dataframe(pd.read_csv(_paths()["metrics"] / pick), use_container_width=True)
+        key = pick.replace("_qml_metrics.csv", "")
+        report_path = _paths()["reports"] / f"phase3_qml_{key}.md"
+        if report_path.is_file():
+            with st.expander(f"{key} hybrid report"):
+                st.markdown(report_path.read_text(encoding="utf-8"))
+        st.caption(
+            "A different table with different columns. It is not merged with "
+            "Wisconsin and does not produce a combined disease score."
+        )
+
+    notes = _paths()["reports"] / "phase3_circuit_notes.txt"
+    if notes.is_file():
+        with st.expander("Circuit notes (simulator)"):
+            st.text(notes.read_text(encoding="utf-8")[:8000])
+    phase3 = _paths()["reports"] / "phase3_qml.md"
+    if phase3.is_file():
+        st.subheader("Phase 3 report")
+        st.markdown(phase3.read_text(encoding="utf-8"))
     report = _paths()["reports"] / "hybrid_comparison.md"
     if report.is_file():
-        st.subheader("Written comparison")
+        st.subheader("Phase 4 written comparison")
         st.markdown(report.read_text(encoding="utf-8"))
+
+
+SCORE_FILE_LABELS = {
+    "test_scores.csv": "Wisconsin — all 30 features (Phase 1)",
+    "phase2_full_test_scores.csv": "Wisconsin — 30 features (Phase 2 control)",
+    "phase2_reduced_test_scores.csv": "Wisconsin — selected features (Phase 2)",
+    "qml_test_scores.csv": "Wisconsin — classical vs QML (Phase 3)",
+    "diabetes_test_scores.csv": "Diabetes BRFSS survey",
+}
+
+
+def _score_file_label(name: str) -> str:
+    if name in SCORE_FILE_LABELS:
+        return SCORE_FILE_LABELS[name]
+    stem = name.replace("_test_scores.csv", "").replace("test_scores.csv", "")
+    if stem.endswith("_qml"):
+        return f"{stem[:-4]} — hybrid QML experiment"
+    return f"{stem} — classical experiment"
+
+
+def page_decision_support() -> None:
+    st.title("Decision support (research thresholds)")
+    st.caption(RESEARCH_DISCLAIMER)
+    st.markdown(
+        "A trained model outputs a **probability for the label of its own table**. "
+        "This page shows that score, a research **band**, and what happens to "
+        "recall and false positives when you move the **threshold**."
+    )
+    st.warning(
+        "This is not triage. It does not rank diseases, suggest tests, or say "
+        "anything about a person. Every number below comes from one held-out "
+        "split of one public benchmark."
+    )
+
+    from src.decision_support import (
+        band_legend,
+        is_probability_like,
+        threshold_metrics,
+        threshold_sweep,
+    )
+
+    metrics_dir = _paths()["metrics"]
+    files = sorted(metrics_dir.glob("*test_scores.csv"))
+    if not files:
+        st.info(
+            "No held-out scores saved yet. Run `python -m src.train_classical` "
+            "or `python -m src.train_qml` first."
+        )
+        return
+
+    labels = {_score_file_label(p.name): p for p in files}
+    choice = st.selectbox("Experiment", list(labels.keys()))
+    frame = pd.read_csv(labels[choice])
+    models = sorted(frame["model"].unique())
+    model = st.selectbox("Model", models)
+    subset = frame[frame["model"] == model]
+    scores = subset["score"].to_numpy(dtype=float)
+    truth = subset["y_true"].to_numpy(dtype=int)
+    probability_like = is_probability_like(scores)
+
+    if probability_like:
+        st.caption("Scores are probabilities from `predict_proba`. " + band_legend())
+    else:
+        st.caption(
+            "This model ranks with `decision_function`, so the score is **not** a "
+            "probability. The threshold is a raw decision score."
+        )
+
+    lo, hi = float(scores.min()), float(scores.max())
+    default = 0.5 if probability_like else float((lo + hi) / 2)
+    threshold = st.slider(
+        "Decision threshold for the positive class",
+        min_value=float(round(lo, 4)),
+        max_value=float(round(hi, 4)),
+        value=float(min(max(default, lo), hi)),
+        step=float(max((hi - lo) / 100, 1e-4)),
+    )
+
+    at = threshold_metrics(truth, scores, threshold)
+    cols = st.columns(4)
+    cols[0].metric("Recall (sensitivity)", f"{at['recall']:.3f}")
+    cols[1].metric("Specificity", f"{at['specificity']:.3f}")
+    cols[2].metric("Precision", f"{at['precision']:.3f}")
+    cols[3].metric("F1", f"{at['f1']:.3f}")
+
+    counts = st.columns(4)
+    counts[0].metric("Caught positives", at["true_positives"])
+    counts[1].metric("Missed positives", at["false_negatives"])
+    counts[2].metric("False alarms", at["false_positives"])
+    counts[3].metric("Correct negatives", at["true_negatives"])
+
+    st.markdown(
+        f"At this threshold the model misses **{at['false_negatives']}** positive "
+        f"rows and raises **{at['false_positives']}** false alarms on "
+        f"{len(truth)} held-out rows."
+    )
+
+    sweep = threshold_sweep(truth, scores, steps=41)
+    st.subheader("Threshold sweep")
+    st.line_chart(
+        sweep.set_index("threshold")[["recall", "specificity", "precision", "f1"]]
+    )
+    with st.expander("Sweep table"):
+        st.dataframe(sweep, use_container_width=True)
+
+    if probability_like:
+        st.subheader("Band of a single score")
+        probability = st.slider(
+            "Research probability for this table's positive class",
+            0.0,
+            1.0,
+            0.5,
+            0.01,
+        )
+        from src.decision_support import risk_band
+
+        st.info(
+            f"p = {probability:.2f} falls in the **{risk_band(probability)}** "
+            "for this public table. Not a diagnosis."
+        )
+
+    options = load_metrics_csv("qml_threshold_options.csv")
+    if options is not None:
+        st.subheader("Precomputed threshold options (Phase 3)")
+        st.dataframe(options, use_container_width=True)
+
+    show_png("qml_calibration_curve.png")
+    st.caption(
+        "A reliability curve only makes sense for real probabilities. Models "
+        "scored by `decision_function` are left out unless Platt-scaled."
+    )
+
+
+def page_explainability() -> None:
+    st.title("Explainability")
+    st.caption(RESEARCH_DISCLAIMER)
+    from src.explain import QML_EXPLAINABILITY_LIMITS
+
+    st.markdown(
+        "We explain the **classical** model trained on the same selected columns "
+        "as the quantum models, then state the circuit limits plainly."
+    )
+    show_png("phase4_permutation_importance.png")
+
+    coefficients = load_metrics_csv("phase4_lr_coefficients.csv")
+    if coefficients is None:
+        st.info("Run `python -m src.train_phase4` to build the coefficient tables.")
+    else:
+        st.subheader("Standardized logistic-regression coefficients")
+        st.dataframe(coefficients, use_container_width=True)
+        st.caption(
+            "Sign shows which class a column pushes toward on this benchmark. "
+            "It is not a statement about causing disease."
+        )
+
+    contributions = load_metrics_csv("phase4_lr_row_contributions.csv")
+    if contributions is not None:
+        st.subheader("Worked example: why one row's score moved")
+        st.dataframe(contributions, use_container_width=True)
+        st.caption("contribution = standardized value x coefficient, for one test row.")
+
+    importance = load_metrics_csv("phase4_feature_importance.csv")
+    if importance is not None:
+        st.subheader("Permutation importance (held-out rows)")
+        st.dataframe(importance, use_container_width=True)
+
+    st.subheader("Why we do not 'explain' the circuits")
+    st.info(QML_EXPLAINABILITY_LIMITS)
+
+
+def page_demo_script() -> None:
+    st.title("Demo script (3 minutes)")
+    st.caption(RESEARCH_DISCLAIMER)
+    st.markdown(
+        """
+1. **Frame it (20s).** Hybrid quantum-classical research platform on public
+   biomedical benchmarks. Say the disclaimer out loud: research risk
+   classification, not for clinical use, not a medical device.
+2. **Classical baseline (30s).** *Classical results* → Wisconsin. Point at
+   recall and ROC-AUC, and note that the split seed is fixed at 42 and every
+   transform is fit on training rows only.
+3. **Hybrid QML (45s).** *QML comparison* → the same six selected columns feed
+   VQC, QSVC, a QNN, and an **RBF SVM control**. Show the metric table with
+   the runtime column.
+4. **Say who won (20s).** On this table the classical and kernel models hold
+   the F1 lead and train far faster. That is a measured result, not a failure.
+5. **Ablation (20s).** Qubits versus quantum-kernel quality: more qubits is
+   not automatically better, and cost climbs.
+6. **Decision support (25s).** Move the threshold; watch missed positives
+   trade against false alarms. Probability, band, threshold — no disease
+   ranking.
+7. **Explainability (20s).** Permutation importance plus one worked row for
+   the classical model, and the honest statement that circuit weights are not
+   feature importances.
+8. **Close (10s).** Second hybrid table (Coimbra), the reviewer sheet, and the
+   list of things this project refuses to do: no symptom checker, no
+   multi-disease score for a person, no test advice, no named doctors.
+"""
+    )
+    sheet = _paths()["reports"] / "judge_sheet.md"
+    if sheet.is_file():
+        st.subheader("Reviewer sheet")
+        st.markdown(sheet.read_text(encoding="utf-8"))
+    else:
+        st.info("Run `python -m src.make_judge_sheet` to generate the reviewer sheet.")
 
 
 def page_extra_tables() -> None:
     st.title("Extra research tables")
     st.markdown(
-        "Each CSV is its own experiment. This page is **not** a combined diagnosis tool."
+        "Each CSV is its own experiment. This page is **not** a combined diagnosis tool. "
+        "Large unique-person tables (`cardio`, diabetes BRFSS, `brfss_heart`) stay "
+        "classical; row count is not the same as unique patients."
     )
     metrics_dir = _paths()["metrics"]
-    files = sorted(metrics_dir.glob("*_classical_model_metrics.csv"))
+    # Phase 2/3 artifacts share this filename pattern; they live on their own pages.
+    internal = {
+        "qml_classical_model_metrics.csv",
+        "phase2_full_classical_model_metrics.csv",
+        "phase2_reduced_classical_model_metrics.csv",
+    }
+    files = [
+        p
+        for p in sorted(metrics_dir.glob("*_classical_model_metrics.csv"))
+        if p.name not in internal and not p.name.endswith("_qml_classical_model_metrics.csv")
+    ]
     if not files:
         st.info(
             "No extra-table metrics yet. Try `python -m src.train_tabular cardio` "
@@ -258,6 +554,9 @@ def page_metrics_help() -> None:
 - **Specificity** — of true negatives, how many were called negative (`TN / (TN+FP)`).
 - **F1** — balance of precision and recall.
 - **ROC-AUC** — ranking quality from a score such as `predict_proba[:, 1]`.
+- **Brier score** — how well probabilities match observed frequency (lower is better).
+- **Threshold** — the cut-off where a score becomes a predicted 1. Lowering it
+  catches more positives and raises more false alarms.
 
 These are **research scores on a public split**. They are not a clinical test.
 """
@@ -342,6 +641,17 @@ def page_research_mapper() -> None:
 
     st.subheader("Results")
     st.caption(payload.get("disclaimer", RESEARCH_DISCLAIMER))
+    source = payload.get("mapper_source")
+    if source == "local_regex":
+        st.info(
+            "Mapped with the **local field extractor** (NVIDIA chat was unavailable). "
+            "Use `feature: number` lines. This is not an LLM diagnosis."
+        )
+    elif source == "nvidia":
+        used = payload.get("nvidia_model_used")
+        st.caption(
+            f"NIM field extraction model: {used}" if used else "NIM field extraction."
+        )
     st.info(payload.get("consultancy", ""))
     unmapped = payload.get("unmapped_phrases") or []
     if unmapped:
@@ -398,10 +708,13 @@ def main() -> None:
         "Data overview": page_data,
         "Classical results": page_classical,
         "QML comparison": page_qml,
+        "Decision support": page_decision_support,
+        "Explainability": page_explainability,
         "Research notes mapper": page_research_mapper,
         "Extra research tables": page_extra_tables,
         "Image experiments": page_images,
         "How to read metrics": page_metrics_help,
+        "Demo script": page_demo_script,
         "About and limits": page_about,
     }
     dispatch[page]()

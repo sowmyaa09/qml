@@ -18,6 +18,11 @@ import pandas as pd
 from sklearn.inspection import permutation_importance
 
 from src.data_loader import load_breast_cancer_dataset
+from src.explain import (
+    QML_EXPLAINABILITY_LIMITS,
+    logistic_coefficient_table,
+    row_contributions,
+)
 from src.feature_selection import (
     DEFAULT_K,
     FEATURES_JSON,
@@ -26,6 +31,7 @@ from src.feature_selection import (
     transform_features,
 )
 from src.preprocessing import RANDOM_STATE, stratified_train_test_split
+from src.train_tune import clip_numeric_by_train_quantiles
 from src.utils import (
     LONG_DISCLAIMER,
     RESEARCH_DISCLAIMER,
@@ -71,6 +77,7 @@ def main() -> int:
     x_train, x_test, y_train, y_test = stratified_train_test_split(
         data.features, data.target
     )
+    x_train, x_test = clip_numeric_by_train_quantiles(x_train, x_test)
     selector = fit_select_k_best(x_train, y_train, k=DEFAULT_K)
     names = selected_feature_names(selector, list(x_train.columns))
     x_test_red = transform_features(selector, x_test)
@@ -120,6 +127,43 @@ def main() -> int:
         ]
         print(f"Wrote {csv_path}")
         print(f"Wrote {fig_path}")
+
+    lr_lines = ["No reduced Logistic Regression file found yet."]
+    lr_path = get_models_dir() / "qml_reduced_logistic_regression_model.joblib"
+    if not lr_path.is_file():
+        lr_path = get_models_dir() / "phase2_reduced_logistic_regression_model.joblib"
+    if lr_path.is_file():
+        logistic = joblib.load(lr_path)
+        coefficients = logistic_coefficient_table(logistic, names)
+        coef_csv = get_metrics_dir() / "phase4_lr_coefficients.csv"
+        coefficients.to_csv(coef_csv, index=False)
+
+        # One worked row so "why did the score move" is concrete, not abstract.
+        example_index = 0
+        example_row = x_test_red.iloc[example_index]
+        contributions = row_contributions(logistic, example_row, names, top=DEFAULT_K)
+        contrib_csv = get_metrics_dir() / "phase4_lr_row_contributions.csv"
+        contributions.to_csv(contrib_csv, index=False)
+        true_label = int(pd.Series(y_test).iloc[example_index])
+        score = float(logistic.predict_proba(x_test_red.iloc[[example_index]])[0, 1])
+
+        lr_lines = [
+            f"Loaded `{lr_path.name}`. Standardized coefficients "
+            "(sign = which class the feature pushes toward):",
+            "",
+            _md_table(coefficients),
+            "",
+            f"Worked example — test row {example_index} "
+            f"(true label {true_label}, research probability {score:.3f}):",
+            "",
+            _md_table(contributions),
+            "",
+            "`contribution = standardized value x coefficient`. This says which "
+            "columns moved **this row's** research score on this public table. "
+            "It is not a clinical explanation and not a cause of disease.",
+        ]
+        print(f"Wrote {coef_csv}")
+        print(f"Wrote {contrib_csv}")
 
     qml_csv = _read_csv_if_exists(get_metrics_dir() / "qml_vs_classical_metrics.csv")
     phase2_csv = _read_csv_if_exists(
@@ -186,17 +230,21 @@ def main() -> int:
     blocks.extend(
         [
             "",
-            "## Explainability (classical, reduced features)",
+            "## Explainability — permutation importance (Random Forest)",
             "",
             *importance_lines,
             "",
+            "## Explainability — linear coefficients and one worked row",
+            "",
+            *lr_lines,
+            "",
             "## Limits of QML explainability here",
             "",
-            "- VQC weights live in a parameterized circuit; they are **not** the same as",
-            "  Random Forest split importances.",
+            QML_EXPLAINABILITY_LIMITS,
+            "",
+            "- VQC / QNN weights live in a parameterized circuit; they are **not** the",
+            "  same as Random Forest split importances.",
             "- A fidelity kernel (QSVC) does not give a simple per-feature medical story.",
-            "- We therefore explain the **classical** reduced model on the same columns,",
-            "  and we report QML only via metrics and runtime.",
             "- Near-term devices cannot ingest 30 raw biomedical columns; selection is",
             "  required, and it can drop signal.",
             "",

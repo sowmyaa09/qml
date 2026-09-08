@@ -68,12 +68,15 @@ Example **research domains** (separate experiments, not one “guess my disease�
 | D5 | Training / inference CLI | `python -m src.train_classical`; saved `.joblib` models | 1 | **Done** |
 | D6 | Tests and reproducibility | `pytest`; `random_state=42`; documented commands | 1 | **Done** |
 | D7 | Feature selection / engineering | Reduce ~30 features to ~4–8 for quantum circuits | 2 | **Done** (`python -m src.train_phase2`) |
-| D8 | Hybrid QML models | VQC and QSVC (or equivalent) on simulators | 3 | **Done** (`python -m src.train_qml`) |
-| D9 | QML vs classical benchmark | Same metrics + runtime; no assumed quantum win | 3 | **Done** |
-| D10 | Explainability | Feature importance / permutation (classical); QML limitations documented | 4 | **Done** (`python -m src.train_phase4`) |
-| D11 | Research report artifacts | Written comparison under `outputs/reports/` | 4 | **Done** |
+| D8 | Hybrid QML models | VQC, QSVC, and a QNN track on simulators | 3 | **Done** (`python -m src.train_qml --with-qnn`) |
+| D9 | QML vs classical benchmark | Same metrics + runtime; RBF SVM kernel control; no assumed quantum win | 3 | **Done** |
+| D9b | Qubit ablation | QSVC at k = 4, 6, 8: F1 vs qubits vs seconds | 3 | **Done** (`python -m src.train_qml_ablation`) |
+| D9c | Second hybrid table | QSVC on another small public table, kept separate | 3 | **Done** (`python -m src.train_qml_table coimbra`) |
+| D10 | Explainability | Permutation importance, linear coefficients, one worked row; QML limits documented | 4 | **Done** (`python -m src.train_phase4`) |
+| D10b | Prediction and decision support | Research probability, band, threshold tuning, calibration/Brier | 3–5 | **Done** (Streamlit **Decision support**) |
+| D11 | Research report artifacts | Written comparison + reviewer sheet under `outputs/reports/` | 4 | **Done** (`python -m src.make_judge_sheet`) |
 | D12 | User interface | Streamlit: comparison dashboard, disclaimer always on | 5 | **Done** (`streamlit run app/streamlit_app.py`) |
-| D13 | Optional API / deploy | FastAPI + hosting | 6 | Optional |
+| D13 | Optional API / deploy | FastAPI research mapper + `GET /v1/catalog` | 6 | Local only |
 | D14 | Comprehensive documentation | README, PRD, notebook, comments | Ongoing | In progress |
 
 **Out of scope for this delivery:** clinical deployment, diagnosing a person from typed symptoms, fusing unrelated diseases into one “you have X” model, hospital EHR ingestion, claiming FDA/clinical validation.
@@ -89,7 +92,10 @@ Example **research domains** (separate experiments, not one “guess my disease�
 | Tests (`pytest`) | Done |
 | Notebook `notebooks/01_classical_baseline.ipynb` | Done |
 | Models and plots | Created when you run training |
-| Qiskit / VQC / QSVC | Phase 3 — `python -m src.train_qml` |
+| Qiskit / VQC / QSVC / QNN | Phase 3 — `python -m src.train_qml --with-qnn` |
+| Qubit ablation + second hybrid table | `python -m src.train_qml_ablation`, `python -m src.train_qml_table coimbra` |
+| Decision support + explainability pages | Phase 5 — Streamlit sidebar |
+| Reviewer sheet | `python -m src.make_judge_sheet` |
 | Streamlit | Phase 5 — `streamlit run app/streamlit_app.py` |
 
 ---
@@ -104,10 +110,13 @@ Classical: clean, split, scale, select features
         |
         +---> Classical models (LR, Random Forest)     [Phase 1]
         |
-        +---> Hybrid QML (VQC, QSVC on simulator)      [Phase 3]
+        +---> Hybrid QML (VQC, QSVC, QNN on simulator) [Phase 3]
         |
         v
-Same metrics + plots + (later) explainability
+Same metrics + plots + calibration + explainability
+        |
+        v
+Threshold / band decision support for that one label
         |
         v
 Optional UI showing a research comparison              [Phase 5]
@@ -276,9 +285,42 @@ Fits `SelectKBest` (`mutual_info_classif`, `k=6`) on the **training** split only
 ```powershell
 pip install qiskit qiskit-aer qiskit-algorithms qiskit-machine-learning
 python -m src.train_qml
+python -m src.train_qml --with-qnn            # adds the EstimatorQNN track
+python -m src.train_qml --skip-vqc            # fast kernel-only run
+python -m src.train_qml_significance          # bootstrap CIs, McNemar, DeLong, repeated CV
+python -m src.train_qml_ablation              # QSVC at k = 4, 6, 8
+python -m src.train_qml_table coimbra         # second hybrid table
 ```
 
-VQC + QSVC on the selected features vs reduced classical models. Same split. Runtime is recorded. Quantum is not assumed to win.
+VQC (`ZZFeatureMap` + `RealAmplitudes`, COBYLA), QSVC (`FidelityStatevectorKernel`), and an optional **QNN** (`EstimatorQNN`, the PS's "or equivalent") on the **k=6** selected features, versus reduced logistic regression, random forest, and a classical **RBF SVM** control. Same split as Phase 1/2. MinMax scaling to `[0, 1]` is train-only.
+
+Writes `outputs/metrics/qml_vs_classical_metrics.csv`, `qml_threshold_options.csv`, `qml_ablation_k.csv`, `outputs/reports/phase3_qml.md`, `phase3_ablation.md`, circuit notes, an optimizer trace, and a calibration curve (QSVC is Platt-scaled first, because `decision_function` is not a probability).
+
+Quantum is **not** assumed to win; Wisconsin is often nearly linearly separable.
+
+## Is the difference real? (statistics, not vibes)
+
+The test split is **114 rows**, so a gap of a few thousandths of F1 is noise. `python -m src.train_qml_significance` quantifies it:
+
+- **stratified bootstrap** 95% intervals per model (resampling within each class),
+- **paired bootstrap** of the F1 *difference* (both models scored on the same resampled rows),
+- **McNemar** on hard predictions and **DeLong** on the two ROC-AUCs,
+- **repeated stratified CV** (5 × 5) with clipping, selection and scaling refit *inside every fold*.
+
+Measured on this machine: QSVC F1 **0.950 [0.895, 0.988]** versus RBF SVM **0.951 [0.897, 0.988]**, McNemar **p = 1.000**, and every quantum-vs-classical F1 interval that involves QSVC contains zero. VQC and QNN are separated from the baselines (p < 0.001) — they are genuinely worse. So the honest claim is about **cost**, not accuracy.
+
+Circuit models are not refitted here: predictions are recovered from the saved held-out scores at each estimator's own cutoff. VQC and QNN are excluded from cross-validation because 25 folds would take hours.
+
+## Prediction and decision support
+
+```powershell
+python -m src.make_judge_sheet
+streamlit run app/streamlit_app.py
+```
+
+The **Decision support** page shows the model's probability for **its own table's label**, a research band, and a **threshold slider** that trades recall against false positives on the held-out split. The **Explainability** page shows permutation importance, standardized coefficients, and one worked row.
+
+This is deliberately **not** a differential diagnosis: there is no ranking across diseases, no test recommendation, and no combined per-person score. Each model only ever sees its own table's columns.
 
 ## Extra public tables (separate experiments)
 
@@ -289,6 +331,51 @@ python -m src.train_tabular all
 ```
 
 One command = one table = one saved model. Not a fused “all diseases” product.
+
+### Duplicate audit — why “more Kaggle CSVs” is usually not more data
+
+```powershell
+python -m src.audit_datasets
+```
+
+Public disease tables get re-uploaded constantly, and most “bigger” mirrors are the original rows repeated. An identical row landing in both train and test leaks the label. The audit measured it: **`heart_disease` (the `johnsmith88` mirror) is 70.5% duplicates** — 723 of 1025 rows repeat Cleveland's 302 patients. Its Random Forest previously scored a perfect **1.000** on every metric; after dropping duplicates it scores **F1 0.788**. `load_tabular_dataset` now drops exact duplicates by default.
+
+Real growth needs **different patients**. `heart_uci_pooled` does that properly by combining the four UCI cohorts that share one schema:
+
+| Cohort | Rows |
+| --- | --- |
+| Cleveland | 303 |
+| Hungary | 294 |
+| Switzerland | 123 |
+| VA Long Beach | 200 |
+| **Pooled (deduplicated)** | **918** |
+
+```powershell
+python -m src.train_tabular heart_uci_pooled
+python -m src.train_qml_table heart_uci_pooled
+```
+
+That is 3× Cleveland alone, and it *helps honestly*: Random Forest reaches **F1 0.868 / ROC-AUC 0.919** on 918 real patients versus **F1 0.788** on the 302-row cohort. The site column is dropped from the features on purpose — prevalence differs sharply between hospitals, so a model given the cohort can just learn the site's base rate.
+
+Row count is not the same as unique people. `cardio` is already ~69k after impossible-BP filters, and `python -m src.train_diabetes` uses ~253k BRFSS 2015 survey adults. A 15k EEG table is usually **one recording**, not 15k patients. The large unique-respondent table added here is CDC BRFSS **2020 heart-disease indicators** (`brfss_heart`, ~320k survey adults). It is **not** `cardio_train` and **not** the diabetes survey. Classical only:
+
+```powershell
+python -m src.train_tabular brfss_heart
+python -m src.audit_datasets --keys brfss_heart cardio seizure
+```
+
+Added public tables (still separate): `coimbra`, `seizure`, `framingham`, `seer_breast`, `cervical`, `hepatitis`, `pcos`, `brfss_heart`.
+
+```powershell
+python -m src.train_tabular coimbra
+python -m src.train_tabular seizure
+python -m src.train_tabular framingham
+python -m src.train_tabular seer_breast
+python -m src.train_tabular cervical
+python -m src.train_tabular hepatitis
+python -m src.train_tabular pcos
+python -m src.train_tabular brfss_heart
+```
 
 ## Optional MSK images (not QML)
 
@@ -311,7 +398,7 @@ The UI shows a disclaimer on every page. Comparison pages do not ask for a perso
 
 ## Research notes mapper (optional, NVIDIA NIM)
 
-Translates **synthetic notes or a text PDF** into fields for **existing catalog tables**, then may show a **research positive-class %** from a saved `.joblib` if enough columns are filled. Not a diagnosis. Not a doctor directory.
+Translates **synthetic notes or a text PDF** into fields for **existing catalog tables**, then may show a **research positive-class %** from a saved `.joblib` if enough columns are filled. Tries NVIDIA NIM first (`NVIDIA_MODEL`, then fallbacks). If chat is 403/410, a **local `feature: number` extractor** still maps fields. Not a diagnosis. Not a doctor directory.
 
 ```powershell
 copy .env.example .env

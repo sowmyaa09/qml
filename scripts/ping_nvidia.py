@@ -10,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
+load_dotenv(ROOT / ".env", override=True)
 
 
 def _redact(text: str) -> str:
@@ -23,7 +23,7 @@ def main() -> int:
     base = os.environ.get(
         "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"
     ).rstrip("/")
-    model = os.environ.get("NVIDIA_MODEL", "deepseek-ai/deepseek-v4-pro-0813")
+    model = os.environ.get("NVIDIA_MODEL", "meta/muse-glimmer-30b")
     print("key_set", bool(key))
     print("key_len", len(key))
     print("key_prefix", (key[:6] + "...") if key else "(empty)")
@@ -45,17 +45,18 @@ def main() -> int:
             print("sample_ids", ", ".join(names))
             return 0
         kwargs = {}
-        if "deepseek" in model.lower():
+        if "deepseek" in model.lower() or "muse" in model.lower():
             kwargs["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
         response = client.chat.completions.create(
             model=model,
             temperature=0,
             timeout=60,
-            max_tokens=64,
+            max_tokens=256,
             messages=[{"role": "user", "content": "Reply with only the word pong."}],
             **kwargs,
         )
-        text = (response.choices[0].message.content or "").strip()
+        msg = response.choices[0].message
+        text = (msg.content or getattr(msg, "reasoning_content", None) or "").strip()
         print("http_ok", True)
         print("reply", text[:200])
         return 0

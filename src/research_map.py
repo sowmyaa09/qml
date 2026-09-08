@@ -13,12 +13,15 @@ import joblib
 import numpy as np
 import pandas as pd
 
+import re
+
 from src.catalog_schemas import ALLOWED_KEYS, SCHEMAS, CatalogSchema
+from src.nvidia_client import NvidiaChatError, NvidiaConfigError
 from src.utils import RESEARCH_DISCLAIMER, get_models_dir
 
 SYSTEM_PROMPT = """You extract numbers and flags for a RESEARCH machine-learning catalog.
 You are not a doctor. Do not diagnose. Do not invent diseases outside the allowed keys.
-Allowed catalog keys only: wisconsin, wisconsin_reduced, diabetes, cardio, stroke.
+Allowed catalog keys only: wisconsin, wisconsin_reduced, diabetes, cardio, stroke, coimbra, framingham, hepatitis.
 Return a single JSON object with this shape:
 {
   "catalog_keys": ["wisconsin"],
@@ -54,8 +57,40 @@ def schema_prompt_block() -> str:
     return "\n".join(lines)
 
 
+def extract_catalog_fields_locally(text: str) -> dict[str, Any]:
+    """Regex field grabber when NIM is unavailable. No diagnosis, no %."""
+    features_by_key: dict[str, dict[str, Any]] = {}
+    for key, schema in SCHEMAS.items():
+        cleaned: dict[str, Any] = {}
+        for name in schema.features:
+            pattern = re.compile(
+                rf"{re.escape(name)}\s*[:=]\s*(-?\d+(?:\.\d+)?)",
+                re.IGNORECASE,
+            )
+            match = pattern.search(text)
+            if not match:
+                continue
+            number = float(match.group(1))
+            if number.is_integer() and abs(number) <= 1 and name[:1].isupper():
+                cleaned[name] = int(number)
+            else:
+                cleaned[name] = number
+        if cleaned:
+            features_by_key[key] = cleaned
+    leftover = []
+    if not features_by_key:
+        leftover = [line.strip() for line in text.splitlines() if line.strip()][:8]
+    return sanitize_mapped_payload(
+        {
+            "catalog_keys": list(features_by_key),
+            "features_by_key": features_by_key,
+            "unmapped_phrases": leftover,
+        }
+    )
+
+
 def map_notes_with_llm(text: str) -> dict[str, Any]:
-    """Call NVIDIA NIM and keep only allowed keys/features."""
+    """Call NVIDIA NIM when possible; otherwise regex-extract catalog fields."""
     from src.nvidia_client import complete_json
 
     user = (
@@ -63,8 +98,21 @@ def map_notes_with_llm(text: str) -> dict[str, Any]:
         + "\n\nNotes to extract (research only, not a patient chart):\n"
         + text.strip()
     )
-    raw = complete_json(SYSTEM_PROMPT, user)
-    return sanitize_mapped_payload(raw)
+    try:
+        raw = complete_json(SYSTEM_PROMPT, user)
+        used = raw.pop("_nvidia_model_used", None)
+        payload = sanitize_mapped_payload(raw)
+        payload["mapper_source"] = "nvidia"
+        if used:
+            payload["nvidia_model_used"] = used
+        return payload
+    except (NvidiaChatError, NvidiaConfigError, ValueError):
+        payload = extract_catalog_fields_locally(text)
+        payload["mapper_source"] = "local_regex"
+        payload["unmapped_phrases"] = list(payload.get("unmapped_phrases") or []) + [
+            "NVIDIA chat unavailable; used local field extraction (not an LLM diagnosis)."
+        ]
+        return payload
 
 
 def sanitize_mapped_payload(raw: dict[str, Any]) -> dict[str, Any]:
@@ -241,6 +289,8 @@ def map_and_score(text: str, *, mapped: dict[str, Any] | None = None) -> dict[st
     return {
         "disclaimer": RESEARCH_DISCLAIMER,
         "unmapped_phrases": payload.get("unmapped_phrases") or [],
+        "mapper_source": payload.get("mapper_source"),
+        "nvidia_model_used": payload.get("nvidia_model_used"),
         "results": results,
         "consultancy": (
             "See a licensed clinician in your area if you need care. "

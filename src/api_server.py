@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from src.catalog_schemas import SCHEMAS
 from src.research_map import map_and_score, map_notes_with_llm, score_catalog
 from src.utils import LONG_DISCLAIMER, RESEARCH_DISCLAIMER, get_project_root
 
@@ -37,6 +38,28 @@ class ScoreRequest(BaseModel):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "disclaimer": RESEARCH_DISCLAIMER}
+
+
+@app.get("/v1/catalog")
+def catalog() -> dict[str, Any]:
+    """Which public tables can be scored, and how many fields each one needs."""
+    return {
+        "disclaimer": RESEARCH_DISCLAIMER,
+        "note": (
+            "One entry = one public table with its own label. There is no "
+            "combined multi-disease endpoint."
+        ),
+        "tables": [
+            {
+                "key": schema.key,
+                "title": schema.title,
+                "positive_label": schema.positive_label,
+                "features": list(schema.features),
+                "min_filled": schema.min_filled,
+            }
+            for schema in SCHEMAS.values()
+        ],
+    }
 
 
 @app.post("/v1/research-map")

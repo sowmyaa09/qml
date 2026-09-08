@@ -22,10 +22,11 @@ from src.evaluate import beginner_summary, evaluate_models
 from src.preprocessing import RANDOM_STATE, stratified_train_test_split
 from src.tabular_datasets import CATALOG, list_dataset_keys, load_tabular_dataset
 from src.train_classical import (
-    build_compact_random_forest,
+    forest_for_table,
     predict_with_probabilities,
     train_and_save_models,
 )
+from src.train_tune import clip_numeric_by_train_quantiles
 from src.utils import (
     LONG_DISCLAIMER,
     RESEARCH_DISCLAIMER,
@@ -43,11 +44,14 @@ def _train_one(key: str) -> dict:
     print(RESEARCH_DISCLAIMER, flush=True)
 
     x_train, x_test, y_train, y_test = stratified_train_test_split(features, target)
+    x_train, x_test = clip_numeric_by_train_quantiles(x_train, x_test)
     models = train_and_save_models(
         x_train,
         y_train,
         name_prefix=key,
-        forest=build_compact_random_forest(),
+        forest=forest_for_table(len(x_train)),
+        tune=True,
+        scoring="f1" if spec.binary else "f1_macro",
     )
 
     if spec.binary:

@@ -8,6 +8,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# Every training command only writes PNG files. Leaving matplotlib on a GUI
+# backend let Tk objects be finalized on a worker thread during long Qiskit
+# fits, which killed the process with "Tcl_AsyncDelete: async handler deleted
+# by the wrong thread". Selecting Agg here covers every entry point, because
+# they all import this module.
+try:  # pragma: no cover - depends on the installed backend
+    import matplotlib
+
+    matplotlib.use("Agg")
+except Exception:  # matplotlib is optional for the pure-data helpers
+    pass
+
 RESEARCH_DISCLAIMER = "Research risk classification - not for clinical use."
 
 LONG_DISCLAIMER = (

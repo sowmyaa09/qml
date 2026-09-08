@@ -19,10 +19,12 @@ from src.diabetes_data import inspect_diabetes_dataset, load_diabetes_dataset
 from src.evaluate import beginner_summary, evaluate_models
 from src.preprocessing import RANDOM_STATE, stratified_train_test_split
 from src.train_classical import (
-    build_compact_random_forest,
+    forest_for_table,
     predict_with_probabilities,
     train_and_save_models,
 )
+from src.train_tune import clip_numeric_by_train_quantiles
+from src.train_tune import clip_numeric_by_train_quantiles
 from src.utils import LONG_DISCLAIMER, RESEARCH_DISCLAIMER
 
 
@@ -40,6 +42,7 @@ def main() -> int:
         data.features,
         data.target,
     )
+    x_train, x_test = clip_numeric_by_train_quantiles(x_train, x_test)
     print(
         f"Train rows: {len(x_train)} | Test rows: {len(x_test)} "
         f"(80/20 stratified split, random_state={RANDOM_STATE})",
@@ -55,7 +58,8 @@ def main() -> int:
         x_train,
         y_train,
         name_prefix="diabetes",
-        forest=build_compact_random_forest(),
+        forest=forest_for_table(len(x_train)),
+        tune=True,
     )
 
     predictions = {}

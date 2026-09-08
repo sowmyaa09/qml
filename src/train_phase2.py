@@ -27,6 +27,7 @@ from src.feature_selection import (
 )
 from src.preprocessing import RANDOM_STATE, stratified_train_test_split
 from src.train_classical import predict_with_probabilities, train_and_save_models
+from src.train_tune import clip_numeric_by_train_quantiles
 from src.utils import (
     LONG_DISCLAIMER,
     RESEARCH_DISCLAIMER,
@@ -137,6 +138,7 @@ def main() -> int:
         data.features,
         data.target,
     )
+    x_train, x_test = clip_numeric_by_train_quantiles(x_train, x_test)
     print(
         f"Train rows: {len(x_train)} | Test rows: {len(x_test)} "
         f"(80/20 stratified split, random_state={RANDOM_STATE})"

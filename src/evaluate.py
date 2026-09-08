@@ -17,8 +17,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from sklearn.calibration import calibration_curve
 from sklearn.metrics import (
     accuracy_score,
+    brier_score_loss,
     confusion_matrix,
     f1_score,
     precision_score,
@@ -27,6 +29,11 @@ from sklearn.metrics import (
     roc_curve,
 )
 
+from src.decision_support import (
+    is_probability_like,
+    save_test_scores,
+    test_scores_filename,
+)
 from src.utils import RESEARCH_DISCLAIMER, get_figures_dir, get_metrics_dir
 
 sns.set_theme(style="whitegrid")
@@ -175,6 +182,59 @@ def plot_metric_bars(
     return output_path
 
 
+def plot_calibration_curves(
+    y_true: np.ndarray,
+    probabilities_by_model: dict[str, np.ndarray],
+    output_path: Path,
+    *,
+    n_bins: int = 8,
+) -> Path | None:
+    """Reliability curve for models that output real probabilities.
+
+    Models scored by ``decision_function`` are skipped: their output is not a
+    probability, so plotting it against observed frequency would be wrong.
+    """
+    usable = {
+        name: np.asarray(scores, dtype=float)
+        for name, scores in probabilities_by_model.items()
+        if is_probability_like(scores)
+    }
+    if not usable:
+        return None
+
+    y_true_arr = np.asarray(y_true).astype(int)
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly calibrated")
+    for name, scores in usable.items():
+        bins = min(n_bins, max(2, len(np.unique(scores))))
+        observed, predicted = calibration_curve(y_true_arr, scores, n_bins=bins)
+        brier = brier_score_loss(y_true_arr, scores)
+        ax.plot(predicted, observed, marker="o", label=f"{name} (Brier = {brier:.3f})")
+    ax.set_xlabel("Predicted probability of class 1")
+    ax.set_ylabel("Observed frequency on this split")
+    ax.set_title(f"Calibration (reliability)\n{_caption()}")
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    return output_path
+
+
+def brier_scores(
+    y_true: np.ndarray,
+    probabilities_by_model: dict[str, np.ndarray],
+) -> dict[str, float]:
+    """Brier score per model, for probability outputs only (lower is better)."""
+    y_true_arr = np.asarray(y_true).astype(int)
+    out: dict[str, float] = {}
+    for name, scores in probabilities_by_model.items():
+        array = np.asarray(scores, dtype=float)
+        if is_probability_like(array):
+            out[name] = float(brier_score_loss(y_true_arr, array))
+    return out
+
+
 def save_metrics_csv(
     metrics_by_model: dict[str, dict[str, float]],
     output_path: Path | None = None,
@@ -273,7 +333,19 @@ def evaluate_models(
             metrics_by_model,
             figures / f"{prefix}model_metric_comparison.png",
         )
+        plot_calibration_curves(
+            y_true_arr,
+            {k: np.asarray(v) for k, v in probabilities_by_model.items()},
+            figures / f"{prefix}calibration_curve.png",
+        )
         csv_name = f"{prefix}classical_model_metrics.csv" if prefix else "classical_model_metrics.csv"
         save_metrics_csv(metrics_by_model, get_metrics_dir() / csv_name)
+
+    # Held-out scores let the UI retune the decision threshold without retraining.
+    save_test_scores(
+        y_true_arr,
+        {k: np.asarray(v) for k, v in probabilities_by_model.items()},
+        get_metrics_dir() / test_scores_filename(artifact_prefix),
+    )
 
     return metrics_by_model

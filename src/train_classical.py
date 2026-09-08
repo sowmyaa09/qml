@@ -14,12 +14,14 @@ import sys
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.data_loader import load_breast_cancer_dataset, print_dataset_inspection
 from src.evaluate import beginner_summary, evaluate_models
 from src.preprocessing import RANDOM_STATE, stratified_train_test_split
+from src.train_tune import clip_numeric_by_train_quantiles, fit_with_optional_search
 from src.utils import (
     LONG_DISCLAIMER,
     RESEARCH_DISCLAIMER,
@@ -29,40 +31,72 @@ from src.utils import (
 
 LR_MODEL_NAME = "Logistic Regression"
 RF_MODEL_NAME = "Random Forest"
+RBF_SVM_NAME = "RBF SVM"
 
 
 def build_logistic_regression_pipeline() -> Pipeline:
-    """Scaler + logistic regression. Scaling is fit on training data only."""
+    """Imputer + scaler + logistic regression. Fit on training data only."""
     return Pipeline(
         [
+            ("imputer", SimpleImputer(strategy="median")),
             ("scaler", StandardScaler()),
             (
                 "classifier",
-                LogisticRegression(max_iter=5000, random_state=RANDOM_STATE),
+                LogisticRegression(
+                    max_iter=8000,
+                    class_weight="balanced",
+                    solver="lbfgs",
+                    random_state=RANDOM_STATE,
+                ),
             ),
         ]
     )
 
 
-def build_random_forest() -> RandomForestClassifier:
-    """Random Forest does not need StandardScaler."""
-    return RandomForestClassifier(
-        n_estimators=300,
-        random_state=RANDOM_STATE,
-        class_weight="balanced",
+def build_random_forest() -> Pipeline:
+    """Median impute + Random Forest. Scaling is not required."""
+    return Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            (
+                "classifier",
+                RandomForestClassifier(
+                    n_estimators=400,
+                    min_samples_leaf=2,
+                    class_weight="balanced",
+                    random_state=RANDOM_STATE,
+                    n_jobs=-1,
+                ),
+            ),
+        ]
     )
 
 
-def build_compact_random_forest() -> RandomForestClassifier:
+def build_compact_random_forest() -> Pipeline:
     """Smaller forest for large tables so the ``.joblib`` file stays usable."""
-    return RandomForestClassifier(
-        n_estimators=80,
-        max_depth=12,
-        min_samples_leaf=50,
-        random_state=RANDOM_STATE,
-        class_weight="balanced",
-        n_jobs=-1,
+    return Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            (
+                "classifier",
+                RandomForestClassifier(
+                    n_estimators=150,
+                    max_depth=16,
+                    min_samples_leaf=20,
+                    class_weight="balanced",
+                    random_state=RANDOM_STATE,
+                    n_jobs=-1,
+                ),
+            ),
+        ]
     )
+
+
+def forest_for_table(n_rows: int) -> Pipeline:
+    """Full forest on small tables; compact forest on large CSVs."""
+    if n_rows >= 8000:
+        return build_compact_random_forest()
+    return build_random_forest()
 
 
 def train_and_save_models(
@@ -70,11 +104,14 @@ def train_and_save_models(
     y_train,
     *,
     name_prefix: str = "",
-    forest: RandomForestClassifier | None = None,
+    forest: Pipeline | RandomForestClassifier | None = None,
+    tune: bool = True,
+    scoring: str = "f1",
 ) -> dict:
     """Fit both models and write compressed ``.joblib`` files to ``models/``.
 
     ``name_prefix`` avoids overwriting the breast-cancer files, e.g. ``diabetes``.
+    Optional ``tune`` runs a small GridSearchCV on the **training** split only.
     """
     ensure_output_directories()
     models_dir = get_models_dir()
@@ -83,8 +120,22 @@ def train_and_save_models(
     logistic = build_logistic_regression_pipeline()
     forest_model = forest if forest is not None else build_random_forest()
 
-    logistic.fit(x_train, y_train)
-    forest_model.fit(x_train, y_train)
+    lr_grid = {"classifier__C": [0.25, 1.0, 4.0]} if tune else None
+    rf_grid = None
+    if tune:
+        rf_grid = {
+            "classifier__max_depth": [12, None],
+            "classifier__min_samples_leaf": [1, 4],
+        }
+
+    print("Fitting Logistic Regression...", flush=True)
+    logistic = fit_with_optional_search(
+        logistic, lr_grid, x_train, y_train, scoring=scoring
+    )
+    print("Fitting Random Forest...", flush=True)
+    forest_model = fit_with_optional_search(
+        forest_model, rf_grid, x_train, y_train, scoring=scoring
+    )
 
     lr_path = models_dir / f"{prefix}logistic_regression_model.joblib"
     rf_path = models_dir / f"{prefix}random_forest_model.joblib"
@@ -129,6 +180,7 @@ def main() -> int:
         data.features,
         data.target,
     )
+    x_train, x_test = clip_numeric_by_train_quantiles(x_train, x_test)
     print(
         f"Train rows: {len(x_train)} | Test rows: {len(x_test)} "
         f"(80/20 stratified split, random_state={RANDOM_STATE})"
