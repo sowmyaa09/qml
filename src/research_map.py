@@ -15,13 +15,13 @@ import pandas as pd
 
 import re
 
-from src.catalog_schemas import ALLOWED_KEYS, SCHEMAS, CatalogSchema
+from src.catalog_schemas import ALLOWED_KEYS, FEATURE_NAME_ALIASES, SCHEMAS, CatalogSchema
 from src.nvidia_client import NvidiaChatError, NvidiaConfigError
 from src.utils import RESEARCH_DISCLAIMER, get_models_dir
 
 SYSTEM_PROMPT = """You extract numbers and flags for a RESEARCH machine-learning catalog.
 You are not a doctor. Do not diagnose. Do not invent diseases outside the allowed keys.
-Allowed catalog keys only: wisconsin, wisconsin_reduced, diabetes, cardio, stroke, coimbra, framingham, hepatitis.
+Allowed catalog keys only: wisconsin, wisconsin_reduced, diabetes, cardio, stroke, coimbra, framingham, hepatitis, pima, heart_uci_pooled.
 Return a single JSON object with this shape:
 {
   "catalog_keys": ["wisconsin"],
@@ -34,8 +34,13 @@ Rules:
 - Only include keys from the allowed list.
 - Only include feature names that appear in the user schema list.
 - Use numbers or 0/1 for binary survey flags. Omit unknown fields.
+- Conversational phrasing is allowed when a number is present
+  (example: "I am 54 years old" may fill age/Age).
+- NEVER invent a lab, FNA, or survey value that is not in the notes.
+- NEVER fill fields from symptoms such as pain, tiredness, or cough.
 - Do not output a disease probability. Do not name doctors.
-- If the text is unrelated, return empty catalog_keys and list unmapped_phrases.
+- If the text is only symptoms with no numbers, return empty catalog_keys
+  and list those phrases in unmapped_phrases.
 """
 
 
@@ -50,7 +55,16 @@ def extract_pdf_text(data: bytes) -> str:
     return "\n".join(parts).strip()
 
 
-def schema_prompt_block() -> str:
+def schema_prompt_block(catalog_key: str | None = None) -> str:
+    if catalog_key:
+        if catalog_key not in SCHEMAS:
+            raise KeyError(f"Unknown catalog key {catalog_key!r}")
+        schema = SCHEMAS[catalog_key]
+        return (
+            f"Extract fields only for catalog key `{catalog_key}` ({schema.title}).\n"
+            f"Allowed feature names: {', '.join(schema.features)}\n"
+            "Do not include any other catalog key."
+        )
     lines = ["Feature names per catalog key:"]
     for key, schema in SCHEMAS.items():
         lines.append(f"- {key}: {', '.join(schema.features)}")
@@ -63,11 +77,16 @@ def extract_catalog_fields_locally(text: str) -> dict[str, Any]:
     for key, schema in SCHEMAS.items():
         cleaned: dict[str, Any] = {}
         for name in schema.features:
-            pattern = re.compile(
-                rf"{re.escape(name)}\s*[:=]\s*(-?\d+(?:\.\d+)?)",
-                re.IGNORECASE,
-            )
-            match = pattern.search(text)
+            aliases = FEATURE_NAME_ALIASES.get(name, ())
+            match = None
+            for candidate in (name, *aliases):
+                pattern = re.compile(
+                    rf"{re.escape(candidate)}\s*[:=]\s*(-?\d+(?:\.\d+)?)",
+                    re.IGNORECASE,
+                )
+                match = pattern.search(text)
+                if match:
+                    break
             if not match:
                 continue
             number = float(match.group(1))
@@ -89,12 +108,108 @@ def extract_catalog_fields_locally(text: str) -> dict[str, Any]:
     )
 
 
-def map_notes_with_llm(text: str) -> dict[str, Any]:
+_SYMPTOM_HINT = re.compile(
+    r"\b(pain|fever|cough|headache|nausea|symptom|dizzy|vomit|"
+    r"i have|i feel|what disease|which disease)\b",
+    re.IGNORECASE,
+)
+
+
+def score_pasted_record(key: str, text: str) -> dict[str, Any]:
+    """Score one catalog table from pasted `field: number` lines or JSON.
+
+    Free-text symptoms are not a diagnosis source. If no schema fields are
+    found, no multi-disease ranking is invented.
+    """
+    if key not in SCHEMAS:
+        raise KeyError(f"Unknown catalog key {key!r}")
+    raw = (text or "").strip()
+    features: dict[str, Any] = {}
+    if raw.startswith("{") or raw.startswith("["):
+        try:
+            blob = json.loads(raw)
+            if isinstance(blob, dict) and isinstance(blob.get("features"), dict):
+                blob = blob["features"]
+            if isinstance(blob, dict):
+                allowed = {name.lower(): name for name in SCHEMAS[key].features}
+                for fname, value in blob.items():
+                    canon = allowed.get(str(fname).strip().lower())
+                    if canon is not None:
+                        features[canon] = value
+        except json.JSONDecodeError:
+            features = {}
+    if not features:
+        mapped = extract_catalog_fields_locally(raw)
+        features = dict(mapped.get("features_by_key", {}).get(key) or {})
+    result = score_catalog(key, features)
+    refused = (not features) and bool(_SYMPTOM_HINT.search(raw))
+    if refused:
+        result["insufficient"] = True
+        result["research_positive_percent"] = None
+        result["models"] = []
+        result["message"] = (
+            "Not a symptom checker. This model only scores columns from "
+            f"{SCHEMAS[key].title}. Paste lines like `field: number` for that "
+            "table. It cannot name a disease from symptoms."
+        )
+    return {
+        "disclaimer": RESEARCH_DISCLAIMER,
+        "note": (
+            "One table, one label. Other trained models are not consulted. "
+            "Not a diagnosis."
+        ),
+        "extracted": features,
+        "refused_symptom_checker": refused,
+        "result": result,
+    }
+
+
+def score_notes_for_table(key: str, text: str) -> dict[str, Any]:
+    """NVIDIA (or local regex) extracts this table's fields, then scores it.
+
+    Other catalog tables are ignored. Missing values are not invented.
+    """
+    if key not in SCHEMAS:
+        raise KeyError(f"Unknown catalog key {key!r}")
+    raw = (text or "").strip()
+    mapped = map_notes_with_llm(raw, catalog_key=key)
+    local = extract_catalog_fields_locally(raw).get("features_by_key", {}).get(key) or {}
+    nvidia_feats = mapped.get("features_by_key", {}).get(key) or {}
+    features = {**local, **nvidia_feats}
+    result = score_catalog(key, features)
+    refused = (not features) and bool(_SYMPTOM_HINT.search(raw))
+    if refused:
+        result["insufficient"] = True
+        result["research_positive_percent"] = None
+        result["models"] = []
+        result["message"] = (
+            "NVIDIA can read numbers you mention (age, glucose, blood pressure, "
+            "named lab fields). It cannot invent those numbers from symptoms, "
+            "and it cannot say which disease you have."
+        )
+    missing = result.get("missing") or []
+    return {
+        "disclaimer": RESEARCH_DISCLAIMER,
+        "note": (
+            "One table, one label. NVIDIA filled only fields it could read "
+            "from your words. Not a diagnosis."
+        ),
+        "extracted": features,
+        "missing": missing,
+        "mapper_source": mapped.get("mapper_source"),
+        "nvidia_model_used": mapped.get("nvidia_model_used"),
+        "unmapped_phrases": mapped.get("unmapped_phrases") or [],
+        "refused_symptom_checker": refused,
+        "result": result,
+    }
+
+
+def map_notes_with_llm(text: str, *, catalog_key: str | None = None) -> dict[str, Any]:
     """Call NVIDIA NIM when possible; otherwise regex-extract catalog fields."""
     from src.nvidia_client import complete_json
 
     user = (
-        schema_prompt_block()
+        schema_prompt_block(catalog_key)
         + "\n\nNotes to extract (research only, not a patient chart):\n"
         + text.strip()
     )
@@ -102,12 +217,20 @@ def map_notes_with_llm(text: str) -> dict[str, Any]:
         raw = complete_json(SYSTEM_PROMPT, user)
         used = raw.pop("_nvidia_model_used", None)
         payload = sanitize_mapped_payload(raw)
+        if catalog_key:
+            feats = (payload.get("features_by_key") or {}).get(catalog_key) or {}
+            payload["catalog_keys"] = [catalog_key] if feats else []
+            payload["features_by_key"] = {catalog_key: feats} if feats else {}
         payload["mapper_source"] = "nvidia"
         if used:
             payload["nvidia_model_used"] = used
         return payload
     except (NvidiaChatError, NvidiaConfigError, ValueError):
         payload = extract_catalog_fields_locally(text)
+        if catalog_key:
+            feats = (payload.get("features_by_key") or {}).get(catalog_key) or {}
+            payload["catalog_keys"] = [catalog_key] if feats else []
+            payload["features_by_key"] = {catalog_key: feats} if feats else {}
         payload["mapper_source"] = "local_regex"
         payload["unmapped_phrases"] = list(payload.get("unmapped_phrases") or []) + [
             "NVIDIA chat unavailable; used local field extraction (not an LLM diagnosis)."
@@ -195,6 +318,96 @@ def _model_paths(prefix: str) -> list:
     ]
 
 
+def _model_display_name(filename: str, prefix: str) -> str:
+    base = filename
+    if base.endswith(".joblib"):
+        base = base[:-7]
+    stem = f"{prefix}_" if prefix else ""
+    if stem and base.startswith(stem):
+        base = base[len(stem):]
+    if base.endswith("_model"):
+        base = base[:-6]
+
+    known = {
+        "logistic_regression": "Logistic Regression",
+        "random_forest": "Random Forest",
+        "qsvc": "QSVC",
+        "rbf_svm": "RBF SVM",
+        "vqc": "VQC",
+        "qnn": "QNN",
+        "gradient_boosting": "Gradient Boosting",
+        "xgboost": "XGBoost",
+        "decision_tree": "Decision Tree",
+        "knn": "K-Nearest Neighbors",
+        "naive_bayes": "Naive Bayes",
+        "mlp": "Neural Network (MLP)",
+    }
+    return known.get(base, base.replace("_", " ").title())
+
+
+def iter_scorable_model_files(key: str, prefix: str) -> list[tuple[str, Any]]:
+    """Named joblib files the UI can run for one catalog table (auto-discovers all matching models)."""
+    models_dir = get_models_dir()
+    items: list[tuple[str, Any]] = []
+    seen: set[str] = set()
+    stem = f"{prefix}_" if prefix else ""
+
+    if prefix:
+        for path in sorted(models_dir.glob(f"{stem}*_model.joblib")):
+            name = _model_display_name(path.name, prefix)
+            items.append((name, path))
+            seen.add(path.name)
+    else:
+        for expected in ("logistic_regression_model.joblib", "random_forest_model.joblib"):
+            p = models_dir / expected
+            if p.is_file():
+                items.append((_model_display_name(expected, ""), p))
+                seen.add(expected)
+
+    if key == "wisconsin_reduced":
+        for extra, extra_prefix in [
+            ("qsvc_model.joblib", ""),
+            ("qml_reduced_rbf_svm_model.joblib", "qml_reduced"),
+            ("qnn_model.joblib", ""),
+        ]:
+            p = models_dir / extra
+            if p.is_file() and extra not in seen:
+                items.append((_model_display_name(extra, extra_prefix), p))
+                seen.add(extra)
+
+    qsvc_cand = models_dir / f"{stem}qsvc_model.joblib" if prefix else models_dir / "qsvc_model.joblib"
+    if qsvc_cand.is_file() and qsvc_cand.name not in seen:
+        items.append(("QSVC", qsvc_cand))
+        seen.add(qsvc_cand.name)
+
+    priority = {
+        "Logistic Regression": 1,
+        "Random Forest": 2,
+        "RBF SVM": 3,
+        "QSVC": 4,
+        "QNN": 5,
+        "VQC": 6,
+    }
+    items.sort(key=lambda x: priority.get(x[0], 20))
+    return items
+
+
+def _positive_score_percent(model, row: pd.DataFrame) -> float:
+    if hasattr(model, "predict_proba"):
+        try:
+            proba = model.predict_proba(row)
+            if getattr(proba, "ndim", 1) == 2 and proba.shape[1] >= 2:
+                return round(100.0 * float(np.asarray(proba)[0, 1]), 1)
+        except Exception:
+            pass
+    if hasattr(model, "decision_function"):
+        score = float(np.asarray(model.decision_function(row)).reshape(-1)[0])
+        # Ranking score, not a calibrated probability.
+        mapped = 1.0 / (1.0 + np.exp(-score))
+        return round(100.0 * float(mapped), 1)
+    raise RuntimeError("Saved model has neither predict_proba nor decision_function.")
+
+
 def score_catalog(key: str, features: dict[str, Any]) -> dict[str, Any]:
     """Run a saved model if enough schema fields are present. No LLM probability."""
     if key not in SCHEMAS:
@@ -214,64 +427,129 @@ def score_catalog(key: str, features: dict[str, Any]) -> dict[str, Any]:
         **cov,
     }
     if not cov["runnable"]:
-        base["message"] = "Insufficient fields — no %."
-        return base
-
-    model = None
-    model_path = None
-    for path in _model_paths(schema.model_prefix):
-        if path.is_file():
-            model = joblib.load(path)
-            model_path = path
-            break
-    if model is None:
-        base["insufficient"] = True
         base["message"] = (
-            f"No saved model for {key}. Train it first "
-            f"(prefix={schema.model_prefix or 'wisconsin'})."
+            "Insufficient data: not enough of this table’s own numbers yet — no research score."
         )
         return base
 
-    row = _align_row(model, schema, features)
-    if row is None:
+    scored: list[dict[str, Any]] = []
+    for name, path in iter_scorable_model_files(key, schema.model_prefix):
+        if not path.is_file():
+            continue
+        try:
+            model = joblib.load(path)
+            row = _align_row(model, schema, features, quantum=(name == "QSVC"))
+            if row is None:
+                scored.append(
+                    {
+                        "name": name,
+                        "file": path.name,
+                        "percent": None,
+                        "error": "Could not align columns to this saved model.",
+                    }
+                )
+                continue
+            percent = _positive_score_percent(model, row)
+            scored.append(
+                {
+                    "name": name,
+                    "file": path.name,
+                    "percent": percent,
+                    "error": None,
+                }
+            )
+        except Exception as exc:
+            scored.append(
+                {
+                    "name": name,
+                    "file": path.name,
+                    "percent": None,
+                    "error": str(exc),
+                }
+            )
+
+    usable = [item for item in scored if item.get("percent") is not None]
+    if not usable:
         base["insufficient"] = True
-        base["research_positive_percent"] = None
-        base["message"] = "Could not align columns to the saved model."
+        base["models"] = scored
+        if not scored:
+            base["message"] = (
+                f"No saved model for {key}. Train it first "
+                f"(prefix={schema.model_prefix or 'wisconsin'})."
+            )
+        else:
+            base["message"] = scored[0].get("error") or "Could not score saved models."
         return base
-    if not hasattr(model, "predict_proba"):
-        raise RuntimeError("Saved model has no predict_proba.")
-    proba = model.predict_proba(row)
-    positive = float(np.asarray(proba)[0, 1])
-    base["research_positive_percent"] = round(100.0 * positive, 1)
-    base["model_used"] = model_path.name if model_path else type(model).__name__
+
+    first = usable[0]
+    base["research_positive_percent"] = first["percent"]
+    base["model_used"] = first["file"]
+    base["models"] = scored
+    missing = cov["missing"]
+    extra = ""
+    if missing:
+        missing_str = ", ".join(missing)
+        base["completeness_advice"] = (
+            f"Partial input: {len(cov['filled'])} of {len(schema.features)} features provided. "
+            f"Missing measurement(s): [{missing_str}]. "
+            f"The score was calculated using baseline population median imputation for missing values. "
+            f"Without test values for [{missing_str}], this is an estimated determination on partial data. "
+            f"Providing [{missing_str}] will enable full, non-imputed schema determination."
+        )
+        extra = f" {base['completeness_advice']}"
+    else:
+        base["completeness_advice"] = "Full schema provided. All features evaluated without imputation."
+
     base["message"] = (
-        "Research positive-class probability for this public table (not a diagnosis)."
+        "Research score for this one public table only — not a diagnosis."
+        + extra
     )
     return base
 
 
-def _align_row(model, schema: CatalogSchema, features: dict[str, Any]) -> pd.DataFrame | None:
-    names = list(getattr(model, "feature_names_in_", []) or [])
+def _align_row(
+    model,
+    schema: CatalogSchema,
+    features: dict[str, Any],
+    *,
+    quantum: bool = False,
+) -> pd.DataFrame | None:
+    raw_names = getattr(model, "feature_names_in_", None)
+    names = list(raw_names) if raw_names is not None and len(raw_names) else []
+    frame = pd.DataFrame([{k: features.get(k) for k in schema.features}])
+    if schema.key == "stroke":
+        frame = pd.get_dummies(frame, drop_first=True)
+    frame = frame.apply(pd.to_numeric, errors="coerce")
     if names:
-        frame = pd.DataFrame([{k: features.get(k) for k in schema.features}])
-        if schema.key == "stroke":
-            frame = pd.get_dummies(frame, drop_first=True)
-        frame = frame.apply(pd.to_numeric, errors="coerce")
         aligned = frame.reindex(columns=names)
-        if aligned.isna().any().any():
-            # Dummy columns can be 0 if that category is absent.
+        extra = [col for col in aligned.columns if col not in schema.features]
+        if extra:
+            aligned[extra] = aligned[extra].fillna(0)
+    else:
+        aligned = frame
+    if not quantum:
+        has_imputer = False
+        if hasattr(model, "named_steps") and "imputer" in model.named_steps:
+            has_imputer = True
+        elif hasattr(model, "steps") and any(s[0] == "imputer" for s in model.steps):
+            has_imputer = True
+        if not has_imputer and aligned.isna().to_numpy().any():
             aligned = aligned.fillna(0)
-        return aligned
-    # Wisconsin sklearn pipeline: order = schema.features
-    values = []
-    for name in schema.features:
-        if not _present(features.get(name)):
+    if quantum:
+        scaler_name = (
+            "qml_minmax_scaler.joblib"
+            if schema.key in {"wisconsin", "wisconsin_reduced"}
+            else f"{schema.model_prefix}_qml_minmax_scaler.joblib"
+        )
+        scaler_path = get_models_dir() / scaler_name
+        if not scaler_path.is_file():
             return None
-        try:
-            values.append(float(features[name]))
-        except (TypeError, ValueError):
+        scaler = joblib.load(scaler_path)
+        if aligned.isna().to_numpy().any():
             return None
-    return pd.DataFrame([values], columns=list(schema.features))
+        scaled = scaler.transform(aligned)
+        return pd.DataFrame(scaled, columns=list(aligned.columns))
+    return aligned
 
 
 def map_and_score(text: str, *, mapped: dict[str, Any] | None = None) -> dict[str, Any]:

@@ -2,11 +2,11 @@
 
 **Product name:** Q-Care Detect — Hybrid Quantum Machine Learning Platform for Early Disease Detection  
 **Document type:** Product Requirements Document  
-**Version:** 0.2  
-**Status:** Active. Phase 1 software exists; hybrid QML not built yet.  
+**Version:** 0.3  
+**Status:** Active. Phases 1–6 implemented (classical, QML, explainability, Streamlit, LAKSHYA UI, local FastAPI).  
 **Audience:** Project owner, reviewers, future contributors
 
-This PRD is the source of truth for **what** we build. It maps the assignment problem statement onto a **research prototype** with explicit safety limits. Frontend remains [Section 10](#10-frontend--design-and-skeleton) and is **not** built until Phase 5.
+This PRD is the source of truth for **what** we build. It maps the assignment problem statement onto a **research prototype** with explicit safety limits. For day-to-day commands and SIH status, [README.md](README.md) and [AGENTS.md](AGENTS.md) may be newer than this file after code changes.
 
 ---
 
@@ -45,7 +45,7 @@ A fully functional hybrid quantum machine learning software platform capable of 
 | Real or benchmark biomedical datasets | **Public benchmarks first** (sklearn Wisconsin). Additional **public** cancer / cardio / neuro tables as **separate** experiments. No identifiable hospital EHR unless a future legal/ethics addendum exists. |
 | Improve accuracy vs classical | **Goal to measure.** Report win/tie/loss. Do not ship a claim that QML is better. |
 | High-dimensional genomics / imaging / EHR | **Out of scope for v1.** v1 is tabular. High dimension is reduced classically to 4–8 features before QML. Imaging/genomics would be a later, separate track. |
-| Quantum neural networks | Optional after VQC/QSVC if time allows. Not required for Phase 3 MVP. |
+| Quantum neural networks | Optional track: `EstimatorQNN` via `python -m src.train_qml --with-qnn`. |
 | Regression | Not in v1. Classification only unless a later phase adds it. |
 | Fully functional platform | Phased delivery (see [Delivery table](#2-delivery-table-expected-deliverables)). Phase 1 is classical-only by design. |
 
@@ -96,17 +96,17 @@ This is the checklist for the assignment’s “expected solution.”
 | D6 | Inference workflow | `predict` / `predict_proba` on held-out test rows | Probabilities used for ROC-AUC | 1 | **Done** |
 | D7 | Performance evaluation | Accuracy, precision, recall/sensitivity, specificity, F1, ROC-AUC, confusion matrix, plots | CSV + PNGs written | 1 | **Done** |
 | D8 | Tests | Dataset load, split preserves classes, metrics in [0, 1] | `pytest` passes | 1 | **Done** |
-| D9 | Feature engineering / selection | Reduce dimensionality for near-term QML (~4–8 features) | Documented method; same split seed | 2 | Not started |
-| D10 | Hybrid QML implementation | VQC and QSVC (simulator); classical wrap for features | Runnable without paid quantum cloud | 3 | Not started |
-| D11 | Hybrid training + inference | Train QML, save or document circuit params, predict on test | Same test indices as classical where possible | 3 | Not started |
-| D12 | Benchmark vs classical | Metrics + wall-clock time + generalization (test set) | Table of classical vs QML; no forced winner | 3 | Not started |
-| D13 | Near-term compatibility | Aer simulator; circuit depth/qubits documented; optional real-backend later | Runs on laptop simulator | 3 | Not started |
-| D14 | Explainability | Classical importances and/or SHAP; QML limits explained | Research report, not a clinical explanation | 4 | Not started |
-| D15 | Reports | `outputs/reports/` comparison write-up | Includes disclaimer | 4 | Not started |
-| D16 | UI | Streamlit comparison platform | Disclaimer on every page; no patient upload | 5 | Not started |
-| D17 | Optional API | FastAPI for research inference | Optional | 6 | Not started |
+| D9 | Feature engineering / selection | Reduce dimensionality for near-term QML (~4–8 features) | Documented method; same split seed | 2 | **Done** (`python -m src.train_phase2`; SelectKBest k=6 default) |
+| D10 | Hybrid QML implementation | VQC and QSVC (simulator); optional QNN; RBF SVM kernel control | Runnable without paid quantum cloud | 3 | **Done** (`python -m src.train_qml --with-qnn`) |
+| D11 | Hybrid training + inference | Train QML, save artifacts, predict on test | Same test indices as classical where possible | 3 | **Done** (`.joblib` under `models/`; `decision_support` + API scoring) |
+| D12 | Benchmark vs classical | Metrics + wall-clock time + generalization (test set) | Table of classical vs QML; no forced winner | 3 | **Done** (+ significance: `python -m src.train_qml_significance`; ablation + second table optional) |
+| D13 | Near-term compatibility | Aer simulator; circuit depth/qubits documented; optional real-backend later | Runs on laptop simulator | 3 | **Done** (Qiskit Aer statevector; no real QPU required) |
+| D14 | Explainability | Classical coefficients + permutation importance; QML limits documented | Research report, not a clinical explanation | 4 | **Done** (`python -m src.train_phase4`; `src/explain.py`) |
+| D15 | Reports | `outputs/reports/` comparison write-up | Includes disclaimer | 4 | **Done** (`python -m src.make_judge_sheet`; phase reports under `outputs/reports/`) |
+| D16 | UI | Streamlit + LAKSHYA web UI (React/Vite) | Disclaimer on every page; no patient upload | 5 | **Done** (`streamlit run app/streamlit_app.py`; `stitchfrontend/` built and served by FastAPI) |
+| D17 | Optional API | FastAPI for research inference and catalog | Local only; not a hosted clinical API | 6 | **Done** (`uvicorn src.api_server:app --reload --port 8000`) |
 
-**Minimum viable “assignment solution”:** D1–D12 plus D13 on a simulator. D14–D16 complete the stated platform (explainability + usable software). D17 is extra.
+**Minimum viable “assignment solution”:** D1–D13 — **complete**. D14–D16 (explainability + usable software) — **complete**. D17 (API) — **complete** (local). Extras beyond this table: decision-support bands/calibration, locked research PDF, NVIDIA schema mapper, 22 catalog datasets, optional PyTorch image tracks.
 
 ---
 
@@ -161,7 +161,7 @@ Do not claim quantum advantage unless a scoped experiment shows it. Never genera
 | NG4 | Promising QML beats classical. |
 | NG5 | Full genomics / 3D imaging / production EHR in v1. |
 | NG6 | Auth, patient database, Docker in early phases. |
-| NG7 | Qiskit before Phase 3. |
+| NG7 | Real QPU / paid quantum cloud as a requirement for delivery. |
 
 ---
 
@@ -212,9 +212,9 @@ Hospital data stays out of scope without a new ethics/legal section.
 
 **Why hybrid (beginner):** a quantum circuit on a simulator cannot ingest 30–10,000 raw features. Classical steps **compress** the problem. The quantum model learns on a **small** vector. That matches near-term hardware.
 
-**Models (planned Phase 3):** Variational Quantum Classifier (VQC) and Quantum SVM (QSVC). Quantum neural nets optional later.
+**Models (Phase 3, implemented):** QSVC (`FidelityStatevectorKernel` + `ZZFeatureMap`), VQC (`RealAmplitudes` + COBYLA), optional EstimatorQNN (`--with-qnn`), plus RBF SVM on the same k features as an honest kernel control.
 
-**Hardware:** Qiskit Aer (or equivalent) simulator on a laptop. Optional IBM/other backend later; not required for delivery.
+**Hardware:** Qiskit Aer statevector simulator on a laptop. Real QPU not used; optional later.
 
 ---
 
@@ -230,25 +230,25 @@ Entry: `python -m src.train_classical`.
 
 Packages: pandas, numpy, scikit-learn, matplotlib, seaborn, joblib, pytest, jupyter.
 
-### 7.2 Phase 2 — Feature selection and reproducibility
+### 7.2 Phase 2 — Feature selection and reproducibility (implemented)
 
-Reduce to ~4–8 features. Freeze method and seeds. Keep classical metrics on both full and reduced sets so Phase 3 comparisons stay honest.
+`python -m src.train_phase2`. SelectKBest (ANOVA F-value) on train only; default k=6. Classical metrics on full vs reduced set on the same test rows.
 
-### 7.3 Phase 3 — Hybrid QML
+### 7.3 Phase 3 — Hybrid QML (implemented)
 
-VQC + QSVC on the reduced set. Same test protocol. Record runtime. Do not claim quantum is better by default.
+`python -m src.train_qml` (+ `--with-qnn` optional). VQC + QSVC + RBF control on reduced features. Significance layer: `python -m src.train_qml_significance`. Optional: `train_qml_ablation`, `train_qml_table coimbra`. Report runtime; do not claim quantum is better by default.
 
-### 7.4 Phase 4 — Explainability and reports
+### 7.4 Phase 4 — Explainability and reports (implemented)
 
-Classical feature importance and/or SHAP. Document that QML explanations are limited. Write `outputs/reports/`.
+`python -m src.train_phase4`: logistic coefficients, permutation importance, one worked row, QML limits in `src/explain.py`. Reports via `make_judge_sheet` and `outputs/reports/`.
 
-### 7.5 Phase 5 — Streamlit
+### 7.5 Phase 5 — UI (implemented)
 
-Section 10. Research comparison only.
+Streamlit (`app/streamlit_app.py`): Home, data, classical, QML, decision support, explainability, mapper, extra tables. **LAKSHYA** React UI (`stitchfrontend/`) served from FastAPI at `http://127.0.0.1:8000`. Research comparison only.
 
-### 7.6 Phase 6 — Optional FastAPI / deploy
+### 7.6 Phase 6 — FastAPI (implemented, local)
 
-Only if requested.
+`src/api_server.py`: `/health`, `/v1/catalog`, `/v1/research-score`, `/v1/research-record`, `/v1/research-report`, `/v1/interview`, static LAKSHYA build. Optional Supabase for PDF unlock keys. Not clinical deployment.
 
 ---
 
@@ -272,66 +272,81 @@ Positive class = disease present (`1`) on the active dataset.
 
 ## 9. Technical architecture (code)
 
-### 9.1 Current (after Phase 1)
+### 9.1 Core modules
 
 | Module | Role |
 |--------|------|
-| `src/utils.py` | Paths, folders, disclaimers |
-| `src/data_loader.py` | Load + relabel + inspect |
+| `src/utils.py` | Paths, folders, disclaimers, Agg matplotlib |
+| `src/data_loader.py` | Wisconsin load + relabel + inspect |
+| `src/tabular_datasets.py` | Extra public tables (22 catalog keys) |
 | `src/preprocessing.py` | Stratified split |
+| `src/feature_selection.py` | SelectKBest for QML |
 | `src/evaluate.py` | Metrics, plots, CSV, summary |
-| `src/train_classical.py` | CLI train/save |
+| `src/train_classical.py` | Phase 1 CLI |
+| `src/train_phase2.py` | Feature selection + reduced classical |
+| `src/train_qml.py` | VQC, QSVC, optional QNN |
+| `src/qml_models.py` | Qiskit circuit builders |
+| `src/significance.py` | Bootstrap, McNemar, DeLong |
+| `src/decision_support.py` | Bands, threshold sweep, calibration |
+| `src/explain.py` | Coefficients, row attribution, QML limits |
+| `src/train_phase4.py` | Explainability + comparison report |
+| `src/make_judge_sheet.py` | Reviewer markdown sheet |
+| `src/research_map.py` | Schema mapping + scoring |
+| `src/api_server.py` | FastAPI + static LAKSHYA |
+| `app/streamlit_app.py` | Streamlit research UI |
+| `stitchfrontend/` | LAKSHYA React/Vite/Tailwind UI |
 
-### 9.2 Phase 1 artifacts
+### 9.2 Typical artifacts (after training)
 
-| File | Description |
-|------|-------------|
-| `outputs/metrics/classical_model_metrics.csv` | Metric table |
-| `outputs/figures/logistic_regression_confusion_matrix.png` | LR heatmap |
-| `outputs/figures/random_forest_confusion_matrix.png` | RF heatmap |
-| `outputs/figures/roc_curve_comparison.png` | ROC |
-| `outputs/figures/model_metric_comparison.png` | Bar chart |
-| `models/logistic_regression_model.joblib` | LR pipeline |
-| `models/random_forest_model.joblib` | RF |
+| Location | Description |
+|----------|-------------|
+| `models/*.joblib` | Classical, QML, tabular models |
+| `outputs/metrics/*.csv` | Per-model metrics and test scores |
+| `outputs/figures/*.png` | Confusion matrices, ROC, calibration |
+| `outputs/reports/` | Phase notes, judge sheet, comparison write-ups |
 
-### 9.3 Later
-
-Phase 3: `src` QML modules + Qiskit in requirements. Phase 5: Streamlit. Phase 6: optional API.
+Artifacts are gitignored; fresh clones must re-run training commands.
 
 ---
 
-## 10. Frontend — design and skeleton
+## 10. Frontend — implemented
 
-**Status: specification only. Do not implement until Phase 5.**
+**Status: implemented.** Two interfaces: Streamlit (research dashboard) and LAKSHYA (React/Vite, served by FastAPI).
 
 ### 10.1 Purpose
 
-Show the **research platform**: data → classical vs hybrid QML → metrics. Not a clinic.
+Show the **research platform**: data → classical vs hybrid QML → metrics → decision support. Not a clinic.
 
 Must: disclaimer first; comparison-first layout; empty states if QML not trained.
 
-Must not: hospital EHR look; patient file upload; “You have cancer”; fake quantum scores.
+Must not: hospital EHR diagnosis workflow; patient file upload as clinical intake; “You have cancer”; fake quantum scores; multi-disease fused diagnosis.
 
 ### 10.2 Design principles
 
 Safety banner on every page. Plain language. Calm academic visual tone. Color not the only signal.
 
-### 10.3 Tool
+### 10.3 Tools
 
-**Streamlit.** No React/auth/cloud in Phase 5.
+- **Streamlit:** `streamlit run app/streamlit_app.py`
+- **LAKSHYA:** `cd stitchfrontend; npm install; npm run build` then open `http://127.0.0.1:8000` with API running
+- Dev proxy: `npm run dev` on port 3000 (proxies `/v1`, `/health` to 8000)
 
-### 10.4 Sitemap
+### 10.4 Sitemap (Streamlit)
 
 ```text
 Home
 Data overview
 Classical results
-QML comparison (placeholder until Phase 3)
-How to read metrics
+QML comparison
+Decision support
+Explainability
+Research notes mapper
+Extra research tables
+Demo script
 About and limits
 ```
 
-Disclaimer on all pages.
+Disclaimer on all pages. LAKSHYA adds Story Pitch, Data Library, Simulator, Score Sheet, Classical Baselines, QML Studio views.
 
 ### 10.5 Home wireframe
 
@@ -376,12 +391,13 @@ Full generation prompt: [task.md](task.md).
 - [x] Delivery table exists.
 - [x] Phase 1 CLI, artifacts, tests.
 
-### 11.2 Assignment-complete (later)
+### 11.2 Assignment-complete
 
-- [ ] D9–D13 (feature select + QML + benchmark on simulator).
-- [ ] D14–D15 (explainability + report).
-- [ ] D16 (UI) recommended for “platform.”
-- [ ] No surface presents a diagnosis.
+- [x] D9–D13 (feature select + QML + benchmark on simulator).
+- [x] D14–D15 (explainability + report).
+- [x] D16 (UI) — Streamlit + LAKSHYA.
+- [x] D17 (local FastAPI).
+- [x] No surface presents a clinical diagnosis (research risk classification only).
 
 ---
 
@@ -389,11 +405,12 @@ Full generation prompt: [task.md](task.md).
 
 | Topic | Question |
 |-------|----------|
-| Feature selection | Mutual information vs model importance vs fixed clinical subset |
-| QML stack | Qiskit version; Aer only vs optional hardware |
-| Extra datasets | Which public cardio/neuro set, if any |
-| QNN | After VQC/QSVC or skip |
-| Regression | Not unless a public regression benchmark is added |
+| Feature selection | **Resolved:** SelectKBest (ANOVA), k=6 default; ablation at k=4/6/8 |
+| QML stack | **Resolved:** Qiskit 1.x + Aer statevector; no real QPU |
+| Extra datasets | **Resolved:** 22 catalog schemas; large tables classical-only; QSVC capped at 5000 rows |
+| QNN | **Resolved:** optional `--with-qnn` track |
+| Regression | Not in scope unless a public regression benchmark is added |
+| Hosted deploy | Local only; cloud clinical API out of scope |
 
 ---
 
@@ -403,13 +420,13 @@ Full generation prompt: [task.md](task.md).
 |---------|------|--------|
 | 0.1 | 2026-08-28 | Initial PRD (classical-first teaching project). |
 | 0.2 | 2026-08-29 | Full assignment problem statement; delivery table; hybrid platform architecture; Phase 1 marked done. |
+| 0.3 | 2026-09-09 | D9–D17 marked **Done**; phases 2–6, LAKSHYA UI, FastAPI, significance, decision support documented. |
 
 ---
 
 ## 14. Next action
 
-1. Keep using Phase 1: `python -m src.train_classical`.  
-2. Next **code** phase: **Phase 2** (feature selection for QML).  
-3. Do not install Qiskit until Phase 3.  
-4. Do not build the frontend until Phase 5.  
-5. Do not add a symptom-to-disease diagnostic UI.
+1. Fresh clone: run training commands in [README.md](README.md) / [AGENTS.md](AGENTS.md) to regenerate `models/` and `outputs/`.  
+2. Demo: `uvicorn src.api_server:app --reload --port 8000` + LAKSHYA build, or `streamlit run app/streamlit_app.py`.  
+3. Reviewer pack: `python -m src.make_judge_sheet`; team briefing: `python -m src.generate_explanation_pdf`.  
+4. Do **not** add symptom-to-disease diagnosis, multi-disease fusion, or clinical deployment claims.

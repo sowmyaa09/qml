@@ -2,7 +2,7 @@
 
 Living notes for Cursor agents working in this repo. **Read this first. Update this file whenever architecture, commands, safety rules, or SIH status change** (dates + what changed). Do not treat README as the only source of truth if this file is newer.
 
-**Last updated:** 2026-09-07
+**Last updated:** 2026-09-09 (Cost dashboard)
 
 ---
 
@@ -50,6 +50,7 @@ src/          train_classical, train_phase2, train_qml, train_phase4,
               train_diabetes, train_tabular, train_wbc, train_msk,
               research_map, nvidia_client, api_server, catalog_schemas, ...
 app/streamlit_app.py
+stitchfrontend/   Vite + React + TS (LAKSHYA UI; build to dist/)
 tests/
 models/       gitignored joblib/pt
 outputs/      figures, metrics, reports (mostly gitignored)
@@ -71,6 +72,8 @@ python -m src.train_qml_table coimbra
 python -m src.train_phase4
 python -m src.make_judge_sheet
 streamlit run app/streamlit_app.py
+cd stitchfrontend; npm install; npm run build
+python -m src.generate_explanation_pdf
 pytest
 ```
 
@@ -83,7 +86,9 @@ Decision support = **one table, one label**: `src/decision_support.py` (probabil
 Optional: `python -m src.train_diabetes` | `python -m src.train_tabular --list|all|<key>` | `python -m src.train_wbc` | `python -m src.train_msk fracture|spine`
 
 Research mapper API: `uvicorn src.api_server:app --reload --port 8000`  
-Needs `.env` with `NVIDIA_API_KEY`. Default chat id: **`meta/muse-glimmer-30b`** (HTTP 200 on this key, 2026-09-06). DeepSeek V4 / Nemotron Ultra / Gemma 4 **timed out** rather than 403 with the refreshed key; `deepseek-ai/deepseek-r1` is **404**. Mapper still falls back to local `feature: number` regex if NIM fails. `%` only from `predict_proba`/`decision_function` when enough fields exist. Catalog keys: `wisconsin`, `wisconsin_reduced`, `diabetes`, `cardio`, `stroke`, `coimbra`, `framingham`, `hepatitis`. Extra train-only tables: `seizure`, `seer_breast`, `cervical`, `pcos`, `brfss_heart` (EEG/SEER/PCOS/BRFSS-heart are not mapper schemas).
+Needs `.env` with `NVIDIA_API_KEY`. Default chat id: **`meta/muse-glimmer-30b`** (HTTP 200 on this key, 2026-09-06). DeepSeek V4 / Nemotron Ultra / Gemma 4 **timed out** rather than 403 with the refreshed key; `deepseek-ai/deepseek-r1` is **404**. Mapper still falls back to local `feature: number` regex if NIM fails. `%` only from `predict_proba`/`decision_function` when enough fields exist. Catalog keys: `wisconsin`, `wisconsin_reduced`, `diabetes`, `cardio`, `stroke`, `coimbra`, `framingham`, `hepatitis`, `pima`, `heart_uci_pooled`. Extra train-only tables: `seizure`, `seer_breast`, `cervical`, `pcos`, `brfss_heart` (EEG/SEER/PCOS/BRFSS-heart are not mapper schemas).
+
+LAKSHYA UI (`stitchfrontend/`): `cd stitchfrontend; npm install; npm run build` then `uvicorn src.api_server:app --reload --port 8000` and open `http://127.0.0.1:8000` (serves `stitchfrontend/dist`). Dev: `npm run dev` on port 3000 (proxies `/v1` and `/health` to 8000). Paste-a-record: `POST /v1/research-record` and locked PDF `POST /v1/research-report` (generated key; name/DOB are labels only). Optional `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` store keys in `report_unlock_keys`. Root `index.html` / `app.js` / `styles.css` / `stitch_assets` were removed.
 
 ---
 
@@ -120,6 +125,21 @@ PRD.md may lag the code; README + this file are more current.
 
 ## Changelog (agents)
 
+- **2026-09-09:** LAKSHYA **Cost** tab: `GET /v1/qml-cost-latency` — F1 vs seconds vs qubits from `qml_ablation_k.csv` + `qml_vs_classical_metrics.csv` (fallback judge-sheet numbers if untrained).
+- **2026-09-09:** Locked PDF states the **research band** and why a table score exists, and explicitly **refuses** “diagnosis confidence” / “the disease you got.”
+- **2026-09-09:** Locked PDF uses a LAKSHYA letterhead (yellow bar, maroon sections, grey fields) modeled on a clinical-looking template, but the copy is still a **research score sheet** — not a hospital GP/insurance report.
+- **2026-09-09:** Team briefing PDF: `python -m src.generate_explanation_pdf` → `explanation.pdf` (hybrid QML vs classical, stack, how QSVC/VQC work). Not a diagnosis.
+- **2026-09-09:** Replaced the vanilla HTML UI with **LAKSHYA** (`stitchfrontend/`). FastAPI serves the Vite build. Old root `index.html`, `app.js`, `styles.css`, and `stitch_assets/` deleted (working tree; git history not rewritten).
+- **2026-09-09:** Score UI and locked PDF show a **specialty domain hint** only (licensed-clinician domain of that public table). Still no named doctors or rankings.
+- **2026-09-09:** Locked research PDF: name + DOB as labels, generated open-password, optional Supabase `report_unlock_keys`. `POST /v1/research-report`. Not a diagnosis.
+- **2026-09-09:** HTML chrome decluttered: short nav, More menu, no nested app frame, airier story slides. Still not a diagnosis.
+- **2026-09-09:** Story Pitch home page is a 4-section scrolly: Story Pitch, Data Overview, Classical Baselines, Hybrid QML Studio. Cards fade/slide in on scroll (not a diagnosis).
+- **2026-09-08:** Dynamic model auto-discovery (`iter_scorable_model_files`) replaces hardcoded model selection, automatically discovering all trained `.joblib` models per dataset (LR, RF, RBF SVM, QSVC, QNN, etc.). Expanded catalog schemas from 10 to 22 datasets (adding `kidney`, `liver`, `parkinson`, `thyroid`, `heart_failure`, `heart_disease`, `fetal`, `cervical`, `pcos`, `seer_breast`, `seizure`, `brfss_heart`). UI simulator and benchmarks dynamically display all discovered models and include backend multi-model evaluation.
+- **2026-09-08:** Score panel in the HTML UI is plain language: one number out of 100, Lower / Middle / Higher on **this table only**, Linear vs Tree vs optional quantum names, no “positive-class %” jargon. Still not a diagnosis.
+- **2026-09-08:** Table questionnaire (`POST /v1/interview`) asks one schema column at a time. “I have a headache” is not triaged; UCI heart uses chest-pain type 0-3, not a 1-10 pain score.
+- **2026-09-08:** **Paste a record** can call NVIDIA (`use_nvidia`) to extract numbers you mentioned into **one** selected table, then score. It still will not invent labs from symptoms or pick a disease.
+- **2026-09-08:** HTML **Paste a record** page scores one selected table from `field: number` lines (`POST /v1/research-record`). Symptom-style free text is refused — not a multi-disease checker.
+- **2026-09-08:** QureSense `index.html` / `app.js` now call FastAPI (`/health`, `/v1/catalog`, `/v1/research-score`). CORS + static files on port 8000. Simulator scores saved LR/RF (and QSVC when the scaler+joblib exist) for `wisconsin_reduced`, `heart_uci_pooled`, and `pima` — one table at a time, not a fused diagnosis.
 - **2026-09-07:** Added `brfss_heart` (CDC 2020 BRFSS heart-disease survey, ~320k unique respondents) as a **separate** classical table. Size does not prevent copies; EEG “15k rows” is often one person. QSVC refuses tables with more than 5000 rows (`MAX_QML_ROWS`) so a 400-row subsample is not sold as a hybrid experiment.
 - **2026-09-07:** Duplicate-row audit (`src/audit_datasets.py`) + default dedup in the loader; found `heart_disease` was 70.5% copies (RF was a fake 1.000). Added `heart_uci_pooled` (4 real cohorts, 918 rows) via new `pooled_urls`/`pooled_columns` spec fields, retrained all tables, and generalized the significance CLI with `--prefix` (QSVC's F1 edge on pooled heart is **not** significant: McNemar p=1.000).
 - **2026-09-07:** Added significance layer (`src/significance.py`, `train_qml_significance`, `QuantileClipper` for leak-free CV pipelines) + Streamlit/judge-sheet sections. Result: QSVC is statistically **indistinguishable** from LR/RF/RBF on this split; VQC/QNN are genuinely worse.

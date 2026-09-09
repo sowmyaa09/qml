@@ -1,0 +1,7 @@
+{
+  "name": "LAKSHYA - QML Biomedical Benchmark",
+  "description": "Empirical classical vs hybrid quantum machine learning research benchmark on public tabular biomedical datasets by SIH26139 Team Mirage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

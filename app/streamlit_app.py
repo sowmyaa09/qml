@@ -664,12 +664,11 @@ def page_research_mapper() -> None:
         st.write(f"Field coverage: **{cov}%** (not a disease %)")
         pct = row.get("research_positive_percent")
         if pct is None:
-            st.warning(row.get("message", "Insufficient fields — no %."))
+            st.warning(row.get("message", "Not enough of this table’s own numbers yet — no research score."))
         else:
             st.metric(
-                "Research positive-class probability for this public table "
-                "(not a diagnosis)",
-                f"{pct}%",
+                "Research score / 100 for this table only (not a diagnosis)",
+                f"{pct}",
             )
             st.caption(row.get("message", ""))
         missing = row.get("missing") or []

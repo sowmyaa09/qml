@@ -387,14 +387,34 @@ python -m src.train_msk spine --epochs 3 --max-per-class 200
 
 Labels exist only inside that Kaggle folder. Not all fractures or spinal injuries.
 
-## Phase 4 report and Phase 5 UI
+## LAKSHYA UI + API
+
+The React app in `stitchfrontend/` talks to FastAPI. Build it, then start **one** server from the project root:
 
 ```powershell
-python -m src.train_phase4
-streamlit run app/streamlit_app.py
+cd stitchfrontend
+npm install
+npm run build
+cd ..
+.\.venv\Scripts\Activate.ps1
+uvicorn src.api_server:app --reload --port 8000
 ```
 
-The UI shows a disclaimer on every page. Comparison pages do not ask for a personal diagnosis.
+Open `http://127.0.0.1:8000`. For live UI edits, run `npm run dev` in `stitchfrontend` (port 3000) with the API on 8000. Paste-a-record posts to `/v1/research-record`; locked PDF uses `/v1/research-report`. Train first:
+
+```powershell
+python -m src.train_phase2
+python -m src.train_tabular heart_uci_pooled
+python -m src.train_tabular pima
+```
+
+One table = one label. Not a multi-disease score.
+
+Optional Streamlit research dashboard:
+
+```powershell
+streamlit run app/streamlit_app.py
+```
 
 ## Research notes mapper (optional, NVIDIA NIM)
 
@@ -414,7 +434,18 @@ In another terminal:
 streamlit run app/streamlit_app.py
 ```
 
-Open **Research notes mapper**. Endpoints: `POST /v1/research-map`, `POST /v1/research-score`, `GET /health`.
+Open **Research notes mapper**. Endpoints: `POST /v1/research-map`, `POST /v1/research-score`, `POST /v1/research-report`, `GET /health`.
+
+**Locked research PDF** (not a medical record): on Paste a record, enter name and date of birth as labels, paste `field: number` lines, then **Generate locked PDF**. The file opens only with a **generated key** (shown once). Name/DOB are not the password.
+
+Optional Supabase (server only):
+
+```
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+Run [supabase/migrations/001_report_unlock_keys.sql](supabase/migrations/001_report_unlock_keys.sql) in the SQL editor. If these env vars are empty, the PDF still downloads and the key is shown once; nothing is stored.
 
 Demo with made-up numbers that match a schema (for example Wisconsin FNA fields). Do not upload real hospital records.
 
