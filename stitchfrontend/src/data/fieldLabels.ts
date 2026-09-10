@@ -50,3 +50,42 @@ export const HEART_CP_FIELD: FieldHelp = {
   description:
     '0 = typical angina, 1 = atypical angina, 2 = non-anginal pain, 3 = asymptomatic. Not a 1–10 pain score.',
 };
+
+export const DDD_FIELDS: FieldHelp[] = [
+  {
+    key: 'pelvic_incidence',
+    label: 'Pelvic incidence',
+    description: 'Angle relating the sacrum to the femoral heads on this orthopedic table (not an MRI).',
+  },
+  {
+    key: 'pelvic_tilt',
+    label: 'Pelvic tilt',
+    description: 'Orientation of the pelvis on this public biomechanical table.',
+  },
+  {
+    key: 'lumbar_lordosis_angle',
+    label: 'Lumbar lordosis angle',
+    description: 'Lower-back curve angle on this table — not a symptom score.',
+  },
+  {
+    key: 'sacral_slope',
+    label: 'Sacral slope',
+    description: 'Sacrum orientation relative to the horizontal on this table.',
+  },
+  {
+    key: 'pelvic_radius',
+    label: 'Pelvic radius',
+    description: 'Distance measure of pelvic geometry on this table.',
+  },
+  {
+    key: 'degree_spondylolisthesis',
+    label: 'Degree of spondylolisthesis',
+    description: 'Slip-grade number on this UCI table. Not a radiology DDD grade.',
+  },
+];
+
+export const FIELD_GUIDES: Record<string, FieldHelp[]> = {
+  wisconsin_reduced: WISCONSIN_REDUCED_FIELDS,
+  ddd: DDD_FIELDS,
+};
+

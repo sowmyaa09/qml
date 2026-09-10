@@ -111,9 +111,9 @@ def test_all_22_schemas_registered() -> None:
     expected_new = [
         "kidney", "liver", "parkinson", "thyroid", "heart_failure",
         "heart_disease", "fetal", "cervical", "pcos", "seer_breast",
-        "seizure", "brfss_heart"
+        "seizure", "brfss_heart", "ddd"
     ]
-    assert len(SCHEMAS) >= 22
+    assert len(SCHEMAS) >= 23
     for k in expected_new:
         assert k in SCHEMAS
         assert len(SCHEMAS[k].features) > 0
@@ -172,3 +172,34 @@ def test_extract_wisconsin_reduced_accepts_sklearn_aliases() -> None:
     assert len(feats) == 6
     assert feats["mean perimeter"] == 122.8
     assert feats["worst area"] == 2019.0
+
+
+def test_ddd_schema_has_six_biomechanical_fields() -> None:
+    from src.catalog_schemas import SCHEMAS
+
+    schema = SCHEMAS["ddd"]
+    assert schema.min_filled == 6
+    assert len(schema.features) == 6
+    assert "pelvic_incidence" in schema.features
+
+
+def test_score_catalog_ddd_insufficient_without_angles() -> None:
+    from src.research_map import score_catalog
+
+    res = score_catalog("ddd", {"age": 54})
+    assert res["insufficient"] is True
+    assert res["research_positive_percent"] is None
+
+
+def test_simulator_json_is_not_wisconsin_reduced() -> None:
+    from src.research_map import score_pasted_record
+
+    payload = score_pasted_record(
+        "wisconsin_reduced",
+        '{"radius_mean": 1.1, "concavity_mean": -0.75, '
+        '"texture_mean": 0.9, "perimeter_mean": 1.25}',
+    )
+    assert payload["result"]["insufficient"] is True
+    assert payload["result"]["research_positive_percent"] is None
+    assert "simulator" in payload["result"]["message"].lower()
+    assert "mean perimeter" in payload["result"]["message"].lower()

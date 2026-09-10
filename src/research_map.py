@@ -15,13 +15,19 @@ import pandas as pd
 
 import re
 
-from src.catalog_schemas import ALLOWED_KEYS, FEATURE_NAME_ALIASES, SCHEMAS, CatalogSchema
+from src.catalog_schemas import (
+    ALLOWED_KEYS,
+    FEATURE_NAME_ALIASES,
+    SCHEMAS,
+    CatalogSchema,
+    resolve_catalog_key,
+)
 from src.nvidia_client import NvidiaChatError, NvidiaConfigError
 from src.utils import RESEARCH_DISCLAIMER, get_models_dir
 
 SYSTEM_PROMPT = """You extract numbers and flags for a RESEARCH machine-learning catalog.
 You are not a doctor. Do not diagnose. Do not invent diseases outside the allowed keys.
-Allowed catalog keys only: wisconsin, wisconsin_reduced, diabetes, cardio, stroke, coimbra, framingham, hepatitis, pima, heart_uci_pooled.
+Allowed catalog keys only: wisconsin, wisconsin_reduced, diabetes, cardio, stroke, coimbra, framingham, hepatitis, pima, heart_uci_pooled, ddd.
 Return a single JSON object with this shape:
 {
   "catalog_keys": ["wisconsin"],
@@ -114,6 +120,42 @@ _SYMPTOM_HINT = re.compile(
     re.IGNORECASE,
 )
 
+_SIMULATOR_KEYS = frozenset(
+    {"radius_mean", "concavity_mean", "texture_mean", "perimeter_mean"}
+)
+
+
+def canonical_feature_name(schema: CatalogSchema, fname: str) -> str | None:
+    """Map pasted JSON/CSV keys onto this table’s schema names."""
+    raw = str(fname).strip()
+    lower = raw.lower()
+    spaced = lower.replace("_", " ")
+    allowed = {name.lower(): name for name in schema.features}
+    if lower in allowed:
+        return allowed[lower]
+    if spaced in allowed:
+        return allowed[spaced]
+    for canon in schema.features:
+        if lower == canon.lower().replace(" ", "_"):
+            return canon
+        aliases = FEATURE_NAME_ALIASES.get(canon, ())
+        if lower in aliases or spaced in {a.replace("_", " ") for a in aliases}:
+            return canon
+    return None
+
+
+def _looks_like_simulator_json(raw: str) -> bool:
+    try:
+        blob = json.loads(raw)
+    except json.JSONDecodeError:
+        return False
+    if isinstance(blob, dict) and isinstance(blob.get("features"), dict):
+        blob = blob["features"]
+    if not isinstance(blob, dict):
+        return False
+    keys = {str(k).strip().lower() for k in blob}
+    return bool(keys) and keys <= _SIMULATOR_KEYS
+
 
 def score_pasted_record(key: str, text: str) -> dict[str, Any]:
     """Score one catalog table from pasted `field: number` lines or JSON.
@@ -131,9 +173,9 @@ def score_pasted_record(key: str, text: str) -> dict[str, Any]:
             if isinstance(blob, dict) and isinstance(blob.get("features"), dict):
                 blob = blob["features"]
             if isinstance(blob, dict):
-                allowed = {name.lower(): name for name in SCHEMAS[key].features}
+                schema = SCHEMAS[key]
                 for fname, value in blob.items():
-                    canon = allowed.get(str(fname).strip().lower())
+                    canon = canonical_feature_name(schema, str(fname))
                     if canon is not None:
                         features[canon] = value
         except json.JSONDecodeError:
@@ -152,6 +194,16 @@ def score_pasted_record(key: str, text: str) -> dict[str, Any]:
             f"{SCHEMAS[key].title}. Paste lines like `field: number` for that "
             "table. It cannot name a disease from symptoms."
         )
+    elif key == "wisconsin_reduced" and _looks_like_simulator_json(raw):
+        needed = ", ".join(SCHEMAS[key].features)
+        result["insufficient"] = True
+        result["research_positive_percent"] = None
+        result["message"] = (
+            "That JSON is the Simulator demo (z-scores like radius_mean). "
+            "This sheet needs the six wisconsin_reduced FNA columns: "
+            f"{needed}. Click High-range sample or upload "
+            "demo/synthetic_wisconsin_reduced_demo.pdf."
+        )
     return {
         "disclaimer": RESEARCH_DISCLAIMER,
         "note": (
@@ -162,6 +214,39 @@ def score_pasted_record(key: str, text: str) -> dict[str, Any]:
         "refused_symptom_checker": refused,
         "result": result,
     }
+
+
+def score_pasted_record_auto(key: str, text: str) -> dict[str, Any]:
+    """Score using an explicit table or field-name detection. Not score-based switching."""
+    resolved, meta = resolve_catalog_key(key, text)
+    if meta.get("detected") and not meta.get("detect_confident"):
+        guess = meta.get("guess_catalog_key")
+        return {
+            "disclaimer": RESEARCH_DISCLAIMER,
+            "detected_catalog_key": None,
+            "detect_confident": False,
+            "guess_catalog_key": guess,
+            "match_percentage": meta.get("match_percentage"),
+            "extracted": {},
+            "refused_symptom_checker": False,
+            "result": {
+                "insufficient": True,
+                "research_positive_percent": None,
+                "models": [],
+                "message": (
+                    "Could not tell which public table those field *names* belong to. "
+                    "Paste enough of one schema’s columns (any catalog table), or pick "
+                    "a table in the dropdown. The numeric score does not choose a disease."
+                ),
+            },
+        }
+    payload = score_pasted_record(resolved, text)
+    payload["detected_catalog_key"] = resolved
+    payload["detect_confident"] = True
+    payload["match_percentage"] = meta.get("match_percentage")
+    payload["schema_title"] = meta.get("schema_title")
+    payload["table_was_auto_detected"] = bool(meta.get("detected"))
+    return payload
 
 
 def score_notes_for_table(key: str, text: str) -> dict[str, Any]:
@@ -202,6 +287,31 @@ def score_notes_for_table(key: str, text: str) -> dict[str, Any]:
         "refused_symptom_checker": refused,
         "result": result,
     }
+
+
+def score_pdf_record(
+    key: str, data: bytes, *, use_nvidia: bool = False
+) -> dict[str, Any]:
+    """Score one table from selectable PDF text. Scans and invented labs are refused."""
+    text = extract_pdf_text(data)
+    if not text.strip():
+        raise ValueError(
+            "No selectable text in that PDF (often a scan). "
+            "This is not a diagnosis from images. Use a text PDF with field: number lines."
+        )
+    if use_nvidia:
+        resolved, meta = resolve_catalog_key(key, text)
+        if meta.get("detected") and not meta.get("detect_confident"):
+            payload = score_pasted_record_auto(key, text)
+        else:
+            payload = score_notes_for_table(resolved, text)
+            payload["detected_catalog_key"] = resolved
+            payload["detect_confident"] = True
+            payload["table_was_auto_detected"] = bool(meta.get("detected"))
+    else:
+        payload = score_pasted_record_auto(key, text)
+    payload["extracted_text"] = text[:12000]
+    return payload
 
 
 def map_notes_with_llm(text: str, *, catalog_key: str | None = None) -> dict[str, Any]:
@@ -427,8 +537,11 @@ def score_catalog(key: str, features: dict[str, Any]) -> dict[str, Any]:
         **cov,
     }
     if not cov["runnable"]:
+        missing = ", ".join(cov["missing"])
         base["message"] = (
-            "Insufficient data: not enough of this table’s own numbers yet — no research score."
+            "Insufficient data: not enough of this table’s own numbers yet — "
+            "no research score. "
+            f"Need: {missing}."
         )
         return base
 

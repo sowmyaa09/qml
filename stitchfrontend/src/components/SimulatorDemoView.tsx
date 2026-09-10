@@ -295,8 +295,9 @@ export const SimulatorDemoView: React.FC<SimulatorDemoViewProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => onNavigateToScoreSheet()}
-              className="px-5 py-2.5 rounded-lg bg-[#00f0ff] hover:bg-[#7df4ff] text-[#00363a] text-xs font-bold transition-all shadow-[0_0_16px_rgba(0,219,233,0.3)] flex items-center gap-2"
+              className="relative z-30 px-5 py-2.5 text-xs font-bold flex items-center gap-2"
             >
               <span>Send to Score Sheet</span>
               <Share2 className="w-4 h-4" />

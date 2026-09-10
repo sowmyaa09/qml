@@ -79,6 +79,12 @@ FEATURE_NAME_ALIASES: dict[str, tuple[str, ...]] = {
         "worst_concave_points",
         "concave_points_worst",
     ),
+    "pelvic_tilt": ("pelvic_tilt numeric", "pelvic tilt"),
+    "lumbar_lordosis_angle": ("lumbar lordosis angle",),
+    "sacral_slope": ("sacral slope",),
+    "pelvic_radius": ("pelvic radius",),
+    "degree_spondylolisthesis": ("grade_of_spondylolisthesis", "spondylolisthesis"),
+    "pelvic_incidence": ("pelvic incidence",),
 }
 
 DIABETES_FEATURES = (
@@ -142,6 +148,15 @@ COIMBRA_FEATURES = (
     "Adiponectin",
     "Resistin",
     "MCP.1",
+)
+
+DDD_FEATURES = (
+    "pelvic_incidence",
+    "pelvic_tilt",
+    "lumbar_lordosis_angle",
+    "sacral_slope",
+    "pelvic_radius",
+    "degree_spondylolisthesis",
 )
 
 FRAMINGHAM_FEATURES = (
@@ -589,6 +604,20 @@ SCHEMAS: dict[str, CatalogSchema] = {
         min_filled=9,
         notes="All 9 Coimbra fields. Separate from Wisconsin FNA.",
     ),
+    "ddd": CatalogSchema(
+        key="ddd",
+        title="Lumbar/disc orthopedic table (UCI vertebral column)",
+        positive_label="Abnormal class (disk hernia or spondylolisthesis) on this table only",
+        specialty_hint=(
+            "Six public biomechanical angles, not an MRI and not a DDD grade. "
+            "Spine / orthopedics is the usual research domain. "
+            "See a licensed clinician. We do not name doctors."
+        ),
+        model_prefix="ddd",
+        features=DDD_FEATURES,
+        min_filled=6,
+        notes="All 6 pelvic/lumbar fields required. Not RSNA lumbar MRI.",
+    ),
     "framingham": CatalogSchema(
         key="framingham",
         title="Framingham 10-year CHD table",
@@ -798,45 +827,157 @@ SCHEMAS: dict[str, CatalogSchema] = {
 
 ALLOWED_KEYS = tuple(SCHEMAS.keys())
 
+# When two schemas match equally (same columns), pick the more useful research table.
+_TIE_PREFER = (
+    "wisconsin_reduced",
+    "heart_uci_pooled",
+    "ddd",
+    "pima",
+)
+_GENERIC_TOKENS = {
+    "age",
+    "sex",
+    "bmi",
+    "weight",
+    "height",
+    "glucose",
+    "male",
+    "class",
+}
+
+
+def _norm_field_token(name: str) -> str:
+    return " ".join(str(name).strip().lower().replace("_", " ").split())
+
+
+def _schema_tokens(schema: CatalogSchema) -> set[str]:
+    tokens: set[str] = set()
+    for feat in schema.features:
+        tokens.add(_norm_field_token(feat))
+        for alias in FEATURE_NAME_ALIASES.get(feat, ()):
+            tokens.add(_norm_field_token(alias))
+    return tokens
+
+
+def _tokens_from_payload(features_or_text: dict[str, Any] | str) -> set[str]:
+    import json
+    import re
+
+    found: set[str] = set()
+    if isinstance(features_or_text, dict):
+        for key in features_or_text:
+            found.add(_norm_field_token(str(key)))
+        return found
+    raw = (features_or_text or "").strip()
+    if raw.startswith("{") or raw.startswith("["):
+        try:
+            blob = json.loads(raw)
+            if isinstance(blob, dict) and isinstance(blob.get("features"), dict):
+                blob = blob["features"]
+            if isinstance(blob, dict):
+                for key in blob:
+                    found.add(_norm_field_token(str(key)))
+                if found:
+                    return found
+        except json.JSONDecodeError:
+            found = set()
+    for line in raw.splitlines():
+        match = re.match(r"^(.+?)\s*[:=]\s*[-+]?\d", line.strip())
+        if match:
+            found.add(_norm_field_token(match.group(1)))
+    return found
+
 
 def auto_detect_schema(
     features_or_text: dict[str, Any] | str,
 ) -> tuple[str, float, CatalogSchema]:
-    """Auto-detect which public table schema best matches the provided fields or text.
+    """Best-matching public table from column *names* only. Not a diagnosis."""
+    key, _pct, schema, _confident, _count = auto_detect_schema_detailed(features_or_text)
+    match_pct = _pct
+    return key, match_pct, schema
 
-    Returns (schema_key, match_percentage, CatalogSchema).
-    Based strictly on exact/normalized column name overlap. Not a clinical diagnosis.
+
+def auto_detect_schema_detailed(
+    features_or_text: dict[str, Any] | str,
+) -> tuple[str, float, CatalogSchema, bool, int]:
+    """Return (key, coverage %, schema, confident, match_count).
+
+    Confidence requires several *named* columns of one schema. A single generic
+    field such as age is not enough to switch tables. Score values are ignored.
     """
-    import re
-
-    if isinstance(features_or_text, str):
-        lines = features_or_text.splitlines()
-        found_keys = set()
-        for line in lines:
-            m = re.match(r"^([a-zA-Z0-9_\s\.\-\%]+)\s*[:=]", line.strip())
-            if m:
-                found_keys.add(m.group(1).strip().lower())
-    else:
-        found_keys = {str(k).strip().lower() for k in features_or_text.keys()}
-
+    found = _tokens_from_payload(features_or_text)
     best_key = "wisconsin_reduced"
     best_score = -1.0
     best_count = 0
 
     for key, schema in SCHEMAS.items():
-        schema_feat_lower = {f.lower(): f for f in schema.features}
-        matches = len(found_keys & set(schema_feat_lower.keys()))
-        if matches > 0:
-            coverage = matches / len(schema.features)
-            composite = matches * 10.0 + coverage
-            if composite > best_score:
-                best_score = composite
-                best_key = key
-                best_count = matches
+        tokens = _schema_tokens(schema)
+        matches = len(found & tokens)
+        if matches <= 0:
+            continue
+        coverage = matches / max(len(schema.features), 1)
+        matched = found & tokens
+        specific_n = len({tok for tok in matched if tok not in _GENERIC_TOKENS})
+        composite = matches * 10.0 + specific_n * 5.0 + coverage
+        better = composite > best_score
+        tied = abs(composite - best_score) < 1e-9
+        if tied:
+            prefer_new = _TIE_PREFER.index(key) if key in _TIE_PREFER else 99
+            prefer_old = _TIE_PREFER.index(best_key) if best_key in _TIE_PREFER else 99
+            better = prefer_new < prefer_old
+        if better:
+            best_score = composite
+            best_key = key
+            best_count = matches
 
+    schema = SCHEMAS[best_key]
     match_pct = (
-        round((best_count / len(SCHEMAS[best_key].features)) * 100.0, 1)
-        if best_count > 0
-        else 0.0
+        round((best_count / len(schema.features)) * 100.0, 1) if best_count else 0.0
     )
-    return best_key, match_pct, SCHEMAS[best_key]
+    coverage = best_count / max(len(schema.features), 1)
+    matched = found & _schema_tokens(schema)
+    specific_n = len({tok for tok in matched if tok not in _GENERIC_TOKENS})
+    n_feat = len(schema.features)
+    cap = min(schema.min_filled, 8)
+    if best_count == 0:
+        confident = False
+    elif specific_n < 2 and best_count < schema.min_filled:
+        confident = False
+    elif n_feat > 40:
+        confident = best_count >= min(schema.min_filled, 10)
+    else:
+        confident = (
+            best_count >= schema.min_filled
+            or best_count >= cap
+            or (best_count >= 3 and coverage >= 0.35)
+        )
+    return best_key, match_pct, schema, confident, best_count
+
+
+def resolve_catalog_key(
+    requested: str | None, features_or_text: dict[str, Any] | str
+) -> tuple[str, dict[str, Any]]:
+    """Honor an explicit catalog key, or detect from field names (not scores)."""
+    req = (requested or "auto").strip()
+    if req and req.lower() not in {"auto", "*"}:
+        if req not in SCHEMAS:
+            raise KeyError(f"Unknown catalog key {req!r}")
+        schema = SCHEMAS[req]
+        return req, {
+            "detected": False,
+            "detect_confident": True,
+            "catalog_key": req,
+            "match_percentage": 100.0,
+            "schema_title": schema.title,
+        }
+    key, pct, schema, confident, count = auto_detect_schema_detailed(features_or_text)
+    return key, {
+        "detected": True,
+        "detect_confident": confident,
+        "catalog_key": key if confident else None,
+        "guess_catalog_key": key,
+        "match_percentage": pct,
+        "match_count": count,
+        "schema_title": schema.title,
+    }
+

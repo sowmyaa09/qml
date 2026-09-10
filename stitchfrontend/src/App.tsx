@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { TabType, DatasetMeta } from './types';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -36,8 +36,12 @@ export default function App() {
     setCurrentTab('paste-a-record');
   };
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentTab]);
+
   return (
-    <div className="min-h-screen bg-[#070b13] text-[#dfe2f0] flex flex-col font-sans selection:bg-[#00f0ff] selection:text-[#00363a]">
+    <div className="min-h-screen bg-transparent text-[#e6fff4] flex flex-col font-sans selection:bg-[#5cffb5] selection:text-[#032016]">
       {/* Fixed Top Advisory & Navigation Header */}
       <Navbar
         currentTab={currentTab}
@@ -49,7 +53,7 @@ export default function App() {
       />
 
       {/* Main View Container */}
-      <main className="flex-1 w-full pt-28 pb-12 overflow-x-hidden">
+      <main className="flex-1 w-full pt-40 md:pt-32 pb-20 overflow-x-hidden relative z-10">
         {currentTab === 'story' && (
           <StoryView onNavigate={(tab) => setCurrentTab(tab)} />
         )}

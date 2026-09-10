@@ -2,7 +2,7 @@
 
 Living notes for Cursor agents working in this repo. **Read this first. Update this file whenever architecture, commands, safety rules, or SIH status change** (dates + what changed). Do not treat README as the only source of truth if this file is newer.
 
-**Last updated:** 2026-09-09 (Cost dashboard)
+**Last updated:** 2026-09-10 (DDD vertebral-column table)
 
 ---
 
@@ -69,11 +69,13 @@ python -m src.train_qml --with-qnn
 python -m src.train_qml_significance
 python -m src.train_qml_ablation
 python -m src.train_qml_table coimbra
+python -m src.train_qml_table ddd
 python -m src.train_phase4
 python -m src.make_judge_sheet
 streamlit run app/streamlit_app.py
 cd stitchfrontend; npm install; npm run build
 python -m src.generate_explanation_pdf
+python -m src.generate_demo_record
 pytest
 ```
 
@@ -86,9 +88,9 @@ Decision support = **one table, one label**: `src/decision_support.py` (probabil
 Optional: `python -m src.train_diabetes` | `python -m src.train_tabular --list|all|<key>` | `python -m src.train_wbc` | `python -m src.train_msk fracture|spine`
 
 Research mapper API: `uvicorn src.api_server:app --reload --port 8000`  
-Needs `.env` with `NVIDIA_API_KEY`. Default chat id: **`meta/muse-glimmer-30b`** (HTTP 200 on this key, 2026-09-06). DeepSeek V4 / Nemotron Ultra / Gemma 4 **timed out** rather than 403 with the refreshed key; `deepseek-ai/deepseek-r1` is **404**. Mapper still falls back to local `feature: number` regex if NIM fails. `%` only from `predict_proba`/`decision_function` when enough fields exist. Catalog keys: `wisconsin`, `wisconsin_reduced`, `diabetes`, `cardio`, `stroke`, `coimbra`, `framingham`, `hepatitis`, `pima`, `heart_uci_pooled`. Extra train-only tables: `seizure`, `seer_breast`, `cervical`, `pcos`, `brfss_heart` (EEG/SEER/PCOS/BRFSS-heart are not mapper schemas).
+Needs `.env` with `NVIDIA_API_KEY`. Default chat id: **`meta/muse-glimmer-30b`** (HTTP 200 on this key, 2026-09-06). DeepSeek V4 / Nemotron Ultra / Gemma 4 **timed out** rather than 403 with the refreshed key; `deepseek-ai/deepseek-r1` is **404**. Mapper still falls back to local `feature: number` regex if NIM fails. `%` only from `predict_proba`/`decision_function` when enough fields exist. Catalog keys: `wisconsin`, `wisconsin_reduced`, `diabetes`, `cardio`, `stroke`, `coimbra`, `ddd`, `framingham`, `hepatitis`, `pima`, `heart_uci_pooled`. Extra train-only tables: `seizure`, `seer_breast`, `cervical`, `pcos`, `brfss_heart` (EEG/SEER/PCOS/BRFSS-heart are not mapper schemas).
 
-LAKSHYA UI (`stitchfrontend/`): `cd stitchfrontend; npm install; npm run build` then `uvicorn src.api_server:app --reload --port 8000` and open `http://127.0.0.1:8000` (serves `stitchfrontend/dist`). Dev: `npm run dev` on port 3000 (proxies `/v1` and `/health` to 8000). Paste-a-record: `POST /v1/research-record` and locked PDF `POST /v1/research-report` (generated key; name/DOB are labels only). Optional `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` store keys in `report_unlock_keys`. Root `index.html` / `app.js` / `styles.css` / `stitch_assets` were removed.
+LAKSHYA UI (`stitchfrontend/`): `cd stitchfrontend; npm install; npm run build` then `uvicorn src.api_server:app --reload --port 8000` and open `http://127.0.0.1:8000` (serves `stitchfrontend/dist`). Dev: `npm run dev` on port 3000 (proxies `/v1` and `/health` to 8000). Paste-a-record: `POST /v1/research-record`, text-PDF upload `POST /v1/research-record-pdf` (extracts named numbers only; scans/symptoms refused), locked PDF `POST /v1/research-report`. Demo file: `demo/synthetic_wisconsin_reduced_demo.pdf`. Optional `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` store keys in `report_unlock_keys`. Root `index.html` / `app.js` / `styles.css` / `stitch_assets` were removed.
 
 ---
 
@@ -125,6 +127,12 @@ PRD.md may lag the code; README + this file are more current.
 
 ## Changelog (agents)
 
+- **2026-09-10:** Score Sheet Auto matches **any** catalog table from pasted **field names** (dropdown lists the full catalog; Sample this table fills that schema). Still not score-based disease switching and not a diagnosis.
+- **2026-09-10:** Score Sheet **Auto** picks a catalog from pasted **field names** (`catalog_key=auto`), e.g. DDD pelvic lines vs Wisconsin FNA. A high/low **score does not switch diseases**. Manual table override remains. Still not a diagnosis.
+- **2026-09-10:** **`ddd`** catalog: UCI vertebral column / Kaggle orthopedic biomechanics (310 rows, 6 angles). Binary Abnormal vs Normal (disk hernia + spondylolisthesis). **Not** RSNA lumbar MRI. Hybrid: `python -m src.train_tabular ddd` then `python -m src.train_qml_table ddd`. Separate table, not a fused DDD diagnosis.
+- **2026-09-10:** Story Pitch is **one continuous scroll** with fade-up on enter (not four snap slides). Still not a diagnosis.
+- **2026-09-10:** Paste-a-record **text-PDF upload** (`POST /v1/research-record-pdf`): extracts selectable `field: number` lines for one table. Scans and symptom-only letters refused. Demo: `demo/synthetic_wisconsin_reduced_demo.pdf`.
+- **2026-09-10:** Synthetic live-demo row (not a medical chart): `python -m src.generate_demo_record` → `demo/synthetic_wisconsin_reduced_*.txt` + PDF. Paste the six `field: number` lines only.
 - **2026-09-09:** LAKSHYA **Cost** tab: `GET /v1/qml-cost-latency` — F1 vs seconds vs qubits from `qml_ablation_k.csv` + `qml_vs_classical_metrics.csv` (fallback judge-sheet numbers if untrained).
 - **2026-09-09:** Locked PDF states the **research band** and why a table score exists, and explicitly **refuses** “diagnosis confidence” / “the disease you got.”
 - **2026-09-09:** Locked PDF uses a LAKSHYA letterhead (yellow bar, maroon sections, grey fields) modeled on a clinical-looking template, but the copy is still a **research score sheet** — not a hospital GP/insurance report.

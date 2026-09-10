@@ -1,6 +1,7 @@
 """Second quantum experiment: QSVC on one small catalog table.
 
     python -m src.train_qml_table coimbra
+    python -m src.train_qml_table ddd
     python -m src.train_qml_table hepatitis --k 6
 
 One table, one label, its own report. This is **not** combined with the

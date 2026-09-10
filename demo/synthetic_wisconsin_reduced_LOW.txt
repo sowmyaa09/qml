@@ -1,0 +1,10 @@
+# SYNTHETIC research row — not a patient, not a diagnosis
+# Paste-a-record labels: name=Ada Example  DOB=1991-04-02
+# Copy only the field: number lines below into LAKSHYA.
+
+mean perimeter: 75.0
+mean concave points: 0.02
+worst radius: 13.0
+worst perimeter: 85.0
+worst area: 520.0
+worst concave points: 0.07

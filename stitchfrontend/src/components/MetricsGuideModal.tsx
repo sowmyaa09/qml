@@ -32,7 +32,7 @@ export const MetricsGuideModal: React.FC<MetricsGuideModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-[#171c25] text-[#849495] hover:text-[#dfe2f0] hover:bg-[#262a34] transition-all"
+            className="btn-icon"
           >
             <X className="w-5 h-5" />
           </button>

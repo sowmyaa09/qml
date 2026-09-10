@@ -41,6 +41,10 @@ ALTERNATE_SLUGS: dict[str, tuple[str, ...]] = {
         "prasoonkottarathil/polycystic-ovary-syndrome-pcos",
         "shreyasvedpathak/pcos-dataset",
     ),
+    "ddd": (
+        "caesarlupum/vertebralcolumndataset",
+        "uciml/biomechanical-features-of-orthopedic-patients",
+    ),
 }
 
 
@@ -303,6 +307,22 @@ CATALOG: dict[str, TabularSpec] = {
             "site's base rate. Hungary/Switzerland/VA have many missing values."
         ),
     ),
+    "ddd": TabularSpec(
+        key="ddd",
+        title="Lumbar/disc orthopedic table (UCI vertebral column; DDD-related, not MRI)",
+        kaggle_slug="uciml/biomechanical-features-of-orthopedic-patients",
+        csv_glob="column_2C_weka.csv",
+        target_column="class",
+        positive_name="Abnormal (disk hernia or spondylolisthesis) on this table",
+        uci_id=212,
+        notes=(
+            "310 orthopedic patients, six pelvic/lumbar biomechanical angles. "
+            "Positive = not Normal (disk hernia + spondylolisthesis on the 2-class "
+            "Kaggle file, or the same merge of UCI 3-class labels). This is NOT "
+            "RSNA 2024 lumbar MRI, NOT a DDD radiology grade, and NOT fused with "
+            "Wisconsin or heart. Separate research task; laptop-sized for QSVC."
+        ),
+    ),
     "pcos": TabularSpec(
         key="pcos",
         title="PCOS clinical table (Kaggle public dump)",
@@ -553,6 +573,27 @@ def _map_target(series: pd.Series, spec: TabularSpec) -> pd.Series:
         # UCI: 1 = liver patient, 2 = non-patient
         mapped = series.replace({1: 1, 2: 0, "1": 1, "2": 0})
         return mapped.astype(int)
+    if spec.key == "ddd":
+        def _abnormal_spine(value: str):
+            if value in {"", "nan"}:
+                return pd.NA
+            if value in {"normal", "no", "n"}:
+                return 0
+            if value in {
+                "abnormal",
+                "hernia",
+                "disk hernia",
+                "disc hernia",
+                "spondylolisthesis",
+                "spondilolysthesis",
+                "dh",
+                "sl",
+                "ab",
+            }:
+                return 1
+            return pd.NA
+
+        return cleaned.map(_abnormal_spine).astype("Int64").astype(int)
     if spec.key == "kidney":
         def _ckd(value: str):
             if "not" in value:
@@ -623,6 +664,22 @@ def _map_target(series: pd.Series, spec: TabularSpec) -> pd.Series:
 def _repair_source_errors(frame: pd.DataFrame, spec: TabularSpec) -> pd.DataFrame:
     """Drop physically impossible rows (not a learned transform)."""
     out = frame.copy()
+    if spec.key == "ddd":
+        rename = {}
+        for col in out.columns:
+            key = str(col).strip().lower().replace(" ", "_")
+            if key.startswith("pelvic_tilt"):
+                rename[col] = "pelvic_tilt"
+            elif key in {
+                "pelvic_incidence",
+                "lumbar_lordosis_angle",
+                "sacral_slope",
+                "pelvic_radius",
+                "degree_spondylolisthesis",
+            }:
+                rename[col] = key
+        if rename:
+            out = out.rename(columns=rename)
     if spec.key == "cardio":
         for col in ("ap_hi", "ap_lo", "height", "weight"):
             if col in out.columns:
@@ -676,6 +733,7 @@ def load_tabular_dataset(
             "hepatitis": ("Class", "class", "Category"),
             "brfss_heart": ("HeartDisease", "Heart Disease", "heartdisease"),
             "pcos": ("PCOS (Y/N)", "PCOS(Y/N)", "PCOS", "pcos"),
+            "ddd": ("class", "Class", "binaryClass", "category"),
         }.get(spec.key, ())]
         found = None
         for name in fallbacks:

@@ -116,3 +116,78 @@ def test_score_accepts_features_without_catalog_key() -> None:
 def test_new_schemas_are_registered() -> None:
     assert "pima" in SCHEMAS
     assert len(SCHEMAS["heart_uci_pooled"].features) == 13
+
+
+def test_auto_detect_switches_ddd_by_field_names_not_scores() -> None:
+    text = (
+        "pelvic_incidence: 60\n"
+        "pelvic_tilt: 17\n"
+        "lumbar_lordosis_angle: 52\n"
+        "sacral_slope: 43\n"
+        "pelvic_radius: 118\n"
+        "degree_spondylolisthesis: 26\n"
+    )
+    response = client.post("/v1/auto-detect", json={"text": text})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["detect_confident"] is True
+    assert body["catalog_key"] == "ddd"
+
+    scored = client.post(
+        "/v1/research-record",
+        json={"catalog_key": "auto", "text": text},
+    )
+    assert scored.status_code == 200
+    payload = scored.json()
+    assert payload["detected_catalog_key"] == "ddd"
+    assert payload["detect_confident"] is True
+
+
+def test_auto_detect_age_only_is_not_confident() -> None:
+    response = client.post("/v1/auto-detect", json={"text": "age: 54"})
+    assert response.status_code == 200
+    assert response.json()["detect_confident"] is False
+
+
+def test_auto_detect_wisconsin_reduced_sample() -> None:
+    text = (
+        "mean perimeter: 122.8\n"
+        "mean concave points: 0.1471\n"
+        "worst radius: 25.38\n"
+        "worst perimeter: 184.6\n"
+        "worst area: 2019.0\n"
+        "worst concave points: 0.2654\n"
+    )
+    response = client.post("/v1/auto-detect", json={"text": text})
+    assert response.status_code == 200
+    assert response.json()["catalog_key"] == "wisconsin_reduced"
+
+
+def test_research_record_pdf_extracts_demo_fields() -> None:
+    from src.generate_demo_record import write_pdf
+
+    path = write_pdf()
+    with path.open("rb") as handle:
+        response = client.post(
+            "/v1/research-record-pdf",
+            data={"catalog_key": "wisconsin_reduced", "use_nvidia": "false"},
+            files={"file": ("demo.pdf", handle, "application/pdf")},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["refused_symptom_checker"] is False
+    extracted = body["extracted"]
+    assert extracted["mean perimeter"] == 122.8
+    assert extracted["worst area"] == 2019.0
+    assert "mean perimeter" in (body.get("extracted_text") or "").lower()
+    if not body["result"]["insufficient"]:
+        assert body["result"]["research_positive_percent"] is not None
+
+
+def test_research_record_pdf_rejects_non_pdf() -> None:
+    response = client.post(
+        "/v1/research-record-pdf",
+        data={"catalog_key": "wisconsin_reduced"},
+        files={"file": ("notes.txt", b"mean perimeter: 122.8", "text/plain")},
+    )
+    assert response.status_code == 400

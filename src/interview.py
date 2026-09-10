@@ -222,6 +222,50 @@ QUESTIONS: dict[str, dict[str, dict[str, Any]]] = {
             "step": 1,
         },
     },
+    "ddd": {
+        "pelvic_incidence": {
+            "question": "Pelvic incidence (degrees) on this orthopedic table?",
+            "kind": "number",
+            "min": 26,
+            "max": 130,
+            "step": 0.5,
+        },
+        "pelvic_tilt": {
+            "question": "Pelvic tilt (degrees)?",
+            "kind": "number",
+            "min": -7,
+            "max": 50,
+            "step": 0.5,
+        },
+        "lumbar_lordosis_angle": {
+            "question": "Lumbar lordosis angle (degrees)?",
+            "kind": "number",
+            "min": 14,
+            "max": 126,
+            "step": 0.5,
+        },
+        "sacral_slope": {
+            "question": "Sacral slope (degrees)?",
+            "kind": "number",
+            "min": 13,
+            "max": 122,
+            "step": 0.5,
+        },
+        "pelvic_radius": {
+            "question": "Pelvic radius?",
+            "kind": "number",
+            "min": 70,
+            "max": 163,
+            "step": 0.5,
+        },
+        "degree_spondylolisthesis": {
+            "question": "Grade / degree of spondylolisthesis on this table (not an MRI report)?",
+            "kind": "number",
+            "min": -11,
+            "max": 150,
+            "step": 0.5,
+        },
+    },
 }
 
 _SYMPTOM_WORDS = (

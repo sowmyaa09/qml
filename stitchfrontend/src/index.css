@@ -4,47 +4,199 @@
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
-  --color-surface: #0f131d;
-  --color-surface-dim: #0f131d;
-  --color-surface-container-lowest: #0a0e17;
-  --color-surface-container-low: #171c25;
-  --color-surface-container: #1b2029;
-  --color-surface-container-high: #262a34;
-  --color-surface-container-highest: #31353f;
-  --color-surface-bright: #353944;
-  --color-surface-variant: #31353f;
+  --color-surface: #06241c;
+  --color-surface-dim: #03150f;
+  --color-surface-container-lowest: #02110c;
+  --color-surface-container-low: #082a21;
+  --color-surface-container: #0b3328;
+  --color-surface-container-high: #0f3d31;
+  --color-surface-container-highest: #14503f;
+  --color-surface-bright: #1a5c49;
+  --color-surface-variant: #14503f;
 
-  --color-primary: #dbfcff;
-  --color-primary-container: #00f0ff;
-  --color-primary-fixed: #7df4ff;
-  --color-primary-fixed-dim: #00dbe9;
-  --color-on-primary: #00363a;
-  --color-on-primary-container: #006970;
+  --color-primary: #d6ffe9;
+  --color-primary-container: #5cffb5;
+  --color-primary-fixed: #9dffd0;
+  --color-primary-fixed-dim: #3ee6a0;
+  --color-on-primary: #032016;
+  --color-on-primary-container: #0a5c40;
 
-  --color-secondary: #d0bcff;
-  --color-secondary-container: #571bc1;
-  --color-secondary-fixed: #e9ddff;
-  --color-secondary-fixed-dim: #d0bcff;
+  --color-secondary: #b8ffd9;
+  --color-secondary-container: #0e8f5e;
+  --color-secondary-fixed: #e6fff4;
+  --color-secondary-fixed-dim: #7dffc4;
 
-  --color-tertiary: #eef7ff;
-  --color-tertiary-container: #aee0ff;
-  --color-tertiary-fixed: #c4e7ff;
-  --color-tertiary-fixed-dim: #7bd0ff;
+  --color-tertiary: #eafff4;
+  --color-tertiary-container: #5cffb5;
+  --color-tertiary-fixed: #c8ffe0;
+  --color-tertiary-fixed-dim: #3ee6a0;
 
-  --color-outline: #849495;
-  --color-outline-variant: #3b494b;
-  --color-on-surface: #dfe2f0;
-  --color-on-surface-variant: #b9cacb;
+  --color-outline: #7dffc4;
+  --color-outline-variant: #1a5c49;
+  --color-on-surface: #e6fff4;
+  --color-on-surface-variant: #b8ffd9;
 }
 
 @layer base {
-  html, body {
+  html,
+  body {
     margin: 0;
     padding: 0;
-    background-color: #070b13;
+    min-height: 100%;
+    background-color: #02110c;
     font-family: var(--font-sans);
-    color: #dfe2f0;
+    color: #e6fff4;
   }
+
+  body {
+    background-image:
+      linear-gradient(rgba(94, 255, 181, 0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(94, 255, 181, 0.09) 1px, transparent 1px);
+    background-size: 36px 36px;
+    background-attachment: fixed;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(94, 255, 181, 0.12), transparent 45%),
+      radial-gradient(ellipse at 90% 80%, rgba(62, 230, 160, 0.08), transparent 40%);
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  ::selection {
+    background: #5cffb5;
+    color: #032016;
+  }
+}
+
+/* Sharp 3D rectangles: dark green rim, slightly lighter fill — no mint glow */
+@layer components {
+  button {
+    border-radius: 0 !important;
+    border: 4px solid #06281c !important;
+    background: #0f4a36 !important;
+    color: #d6ffe9 !important;
+    font-weight: 700 !important;
+    box-shadow:
+      inset 0 0 0 2px #1a6b4e,
+      inset 0 2px 0 rgba(214, 255, 233, 0.12),
+      4px 4px 0 #041910 !important;
+    text-shadow: none;
+    filter: none;
+    transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+  }
+
+  button:hover {
+    filter: none;
+    background: #14604a !important;
+    box-shadow:
+      inset 0 0 0 2px #1f7d5c,
+      inset 0 2px 0 rgba(214, 255, 233, 0.16),
+      4px 4px 0 #041910 !important;
+  }
+
+  button:active {
+    transform: translate(3px, 3px);
+    background: #0c3f2e !important;
+    box-shadow:
+      inset 0 0 0 2px #165c43,
+      1px 1px 0 #041910 !important;
+  }
+
+  button:disabled {
+    opacity: 0.45;
+    filter: grayscale(0.25);
+    transform: none;
+  }
+
+  header .nav-tab {
+    flex: 1 1 0;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 2.85rem !important;
+    padding: 0 0.45rem !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.84rem !important;
+    line-height: 1.15 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    border-width: 3px !important;
+  }
+
+  header .nav-tab-more {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 5.5rem !important;
+    padding: 0 0.85rem !important;
+  }
+
+  header .nav-tab.nav-tab-active,
+  header .nav-tab.nav-tab-active:hover,
+  .btn-menu.nav-tab-active {
+    background: #1a7a58 !important;
+    border-color: #7dffc4 !important;
+    color: #eafff4 !important;
+    box-shadow:
+      0 0 10px rgba(94, 255, 181, 0.85),
+      0 0 22px rgba(62, 230, 160, 0.45),
+      inset 0 0 0 2px #9dffd0,
+      4px 4px 0 #041910 !important;
+  }
+
+  .btn-icon {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    min-width: 2.25rem !important;
+    max-width: 2.25rem !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+      inset 0 0 0 2px #1a6b4e,
+      2px 2px 0 #041910 !important;
+  }
+
+  .btn-menu {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+    padding: 0.45rem 0.7rem !important;
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+/* Square off the usual card rounding; keep dots round */
+.rounded,
+.rounded-sm,
+.rounded-md,
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl,
+.rounded-t,
+.rounded-b,
+.rounded-l,
+.rounded-r,
+.rounded-bl,
+.rounded-br {
+  border-radius: 0 !important;
 }
 
 .no-scrollbar::-webkit-scrollbar {

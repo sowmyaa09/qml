@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FileText,
   Lock,
@@ -7,11 +7,16 @@ import {
   Download,
   AlertTriangle,
   CheckCircle2,
+  Upload,
 } from 'lucide-react';
-import { downloadLockedPdf, scoreRecord } from '../api';
+import {
+  downloadLockedPdf,
+  fetchCatalogTables,
+  scoreRecord,
+  scoreRecordPdf,
+  type CatalogTableRow,
+} from '../api';
 import { WISCONSIN_REDUCED_FIELDS } from '../data/fieldLabels';
-
-const CATALOG_KEY = 'wisconsin_reduced';
 
 const HIGH_RANGE = `mean perimeter: 122.8
 mean concave points: 0.1471
@@ -37,7 +42,7 @@ worst concave points: 0.12`;
 function countParsedLines(text: string): number {
   let n = 0;
   for (const line of text.split('\n')) {
-    if (/^\s*[^:]+:\s*[-+]?\d/.test(line)) n += 1;
+    if (/^.+?\s*[:=]\s*[-+]?\d/.test(line)) n += 1;
   }
   return n;
 }
@@ -68,7 +73,9 @@ export const ScoreSheetView: React.FC = () => {
   const [rawText, setRawText] = useState(HIGH_RANGE);
   const [copiedKey, setCopiedKey] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [scoring, setScoring] = useState(false);
+  const [useNvidia, setUseNvidia] = useState(false);
   const [scoreSuccess, setScoreSuccess] = useState(false);
   const [unlockKey, setUnlockKey] = useState('');
   const [stored, setStored] = useState(false);
@@ -81,59 +88,136 @@ export const ScoreSheetView: React.FC = () => {
   const [statusNote, setStatusNote] = useState(
     'Scores come from saved models on this table only — not a diagnosis.'
   );
+  const [catalogMode, setCatalogMode] = useState('auto');
+  const [activeTable, setActiveTable] = useState('wisconsin_reduced');
+  const [catalogRows, setCatalogRows] = useState<CatalogTableRow[]>([]);
 
+  useEffect(() => {
+    void fetchCatalogTables()
+      .then((rows) => setCatalogRows(rows.filter((row) => row.key)))
+      .catch(() => setCatalogRows([]));
+  }, []);
+
+  const activeMeta = useMemo(
+    () => catalogRows.find((row) => row.key === activeTable),
+    [catalogRows, activeTable]
+  );
+  const fieldGuide = useMemo(() => {
+    const sliders = activeMeta?.sliders || [];
+    if (sliders.length) {
+      const cap = Math.min(sliders.length, 12);
+      return sliders.slice(0, cap).map((slider, idx) => ({
+        key: String(slider.name || activeMeta?.features[idx] || `field_${idx}`),
+        label: String(slider.label || slider.name || ''),
+        description: String(slider.description || ''),
+      }));
+    }
+    return WISCONSIN_REDUCED_FIELDS;
+  }, [activeMeta]);
   const validCount = useMemo(() => countParsedLines(rawText), [rawText]);
   const displayScore = headline;
+  const requestKey = catalogMode === 'auto' ? 'auto' : catalogMode;
 
-  const handlePreFill = (type: 'high' | 'low' | 'mid') => {
-    if (type === 'high') setRawText(HIGH_RANGE);
-    else if (type === 'low') setRawText(LOW_RANGE);
-    else setRawText(MID_RANGE);
+  const fillSampleForTable = (key: string) => {
+    const row = catalogRows.find((item) => item.key === key);
+    if (!row) return;
+    const sliders = row.sliders || [];
+    const names = row.features.length ? row.features : sliders.map((s) => s.name || '');
+    const limit = Math.min(Math.max(row.min_filled, 6), 20, names.length);
+    const lines = names.slice(0, limit).map((name, idx) => {
+      const slider = sliders[idx];
+      const value = slider?.default ?? 1;
+      return `${name}: ${value}`;
+    });
+    if (lines.length) {
+      setRawText(lines.join('\n'));
+      setActiveTable(key);
+    }
     setUnlockKey('');
     setError('');
+  };
+
+  const handlePreFill = (type: 'high' | 'low' | 'mid' | 'ddd' | 'table') => {
+    if (type === 'high') setRawText(HIGH_RANGE);
+    else if (type === 'low') setRawText(LOW_RANGE);
+    else if (type === 'ddd') {
+      fillSampleForTable('ddd');
+      return;
+    } else if (type === 'table') {
+      fillSampleForTable(catalogMode === 'auto' ? activeTable : catalogMode);
+      return;
+    } else setRawText(MID_RANGE);
+    setUnlockKey('');
+    setError('');
+  };
+
+  const applyScorePayload = (data: Awaited<ReturnType<typeof scoreRecord>>) => {
+    if (data.refused_symptom_checker) {
+      setHeadline(null);
+      setLrScore(null);
+      setRfScore(null);
+      setQkScore(null);
+      setStatusNote(
+        'This is not a symptom checker. The PDF or paste must contain this table’s field: number lines — not fever or other symptoms.'
+      );
+      return;
+    }
+    const result = data.result;
+    if (!result) {
+      setStatusNote('No score payload returned.');
+      return;
+    }
+    setSpecialtyHint(result.specialty_hint || '');
+    const models = result.models || [];
+    const pct = result.research_positive_percent ?? null;
+    setHeadline(pct);
+    setLrScore(modelPercent(models, ['logistic', 'lr']));
+    setRfScore(modelPercent(models, ['random forest', 'rf']));
+    setQkScore(modelPercent(models, ['qsvc']));
+    const detected = data.detected_catalog_key || result.key || activeTable;
+    if (detected) setActiveTable(detected);
+    if (result.insufficient) {
+      setStatusNote(
+        result.message ||
+          'Not enough of this table’s columns yet — no research score.'
+      );
+    } else {
+      const how = data.table_was_auto_detected
+        ? 'Matched by field names (not by the score value). '
+        : '';
+      setStatusNote(
+        `${how}${result.title || detected} — one table, one label.`
+      );
+      setScoreSuccess(true);
+      setTimeout(() => setScoreSuccess(false), 2000);
+    }
   };
 
   const handleScore = async () => {
     setScoring(true);
     setError('');
     try {
-      const data = await scoreRecord(CATALOG_KEY, rawText);
-      if (data.refused_symptom_checker) {
-        setHeadline(null);
-        setLrScore(null);
-        setRfScore(null);
-        setQkScore(null);
-        setStatusNote(
-          'This is not a symptom checker. Paste field: number lines for the selected table.'
-        );
-        return;
-      }
-      const result = data.result;
-      if (!result) {
-        setStatusNote('No score payload returned.');
-        return;
-      }
-      setSpecialtyHint(result.specialty_hint || '');
-      const models = result.models || [];
-      const pct = result.research_positive_percent ?? null;
-      setHeadline(pct);
-      setLrScore(modelPercent(models, ['logistic', 'lr']));
-      setRfScore(modelPercent(models, ['random forest', 'rf']));
-      setQkScore(modelPercent(models, ['qsvc']));
-      if (result.insufficient) {
-        setStatusNote(
-          result.message ||
-            'Not enough of this table’s columns yet — no research score.'
-        );
-      } else {
-        setStatusNote(result.title || 'wisconsin_reduced — one table, one label.');
-        setScoreSuccess(true);
-        setTimeout(() => setScoreSuccess(false), 2000);
-      }
+      const data = await scoreRecord(requestKey, rawText);
+      applyScorePayload(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setScoring(false);
+    }
+  };
+
+  const handlePdfUpload = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const data = await scoreRecordPdf(requestKey, file, useNvidia);
+      if (data.extracted_text) setRawText(data.extracted_text);
+      applyScorePayload(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -155,7 +239,7 @@ export const ScoreSheetView: React.FC = () => {
     setError('');
     try {
       const { blob, unlockKey: key, stored: didStore } = await downloadLockedPdf({
-        catalog_key: CATALOG_KEY,
+        catalog_key: requestKey,
         subject_name: subjectName.trim(),
         date_of_birth: dateOfBirth.trim(),
         text: rawText,
@@ -195,9 +279,10 @@ export const ScoreSheetView: React.FC = () => {
             Paste a Record & Research Score Sheet
           </h1>
           <p className="text-xs md:text-sm text-[#b9cacb] max-w-3xl mt-1 leading-relaxed">
-            Score one selected table (wisconsin_reduced) from field: number lines. The
-            locked PDF uses a generated open-password. Name and date of birth are labels
-            only — they are not the password and this is not a diagnosis.
+            Score any public catalog table from field: number lines. Auto matches
+            those <span className="text-[#dbfcff]">column names</span> to one table
+            — never from the score value, never as a diagnosis. Pick a table to lock
+            it. Name and date of birth are PDF labels only.
           </p>
         </div>
 
@@ -238,6 +323,12 @@ export const ScoreSheetView: React.FC = () => {
               >
                 Mid-range sample
               </button>
+              <button
+                onClick={() => handlePreFill('table')}
+                className="px-2 py-0.5 rounded bg-[#262a34] hover:bg-[#353944] text-[#dfe2f0] transition-all"
+              >
+                Sample this table
+              </button>
             </div>
           </div>
 
@@ -269,10 +360,29 @@ export const ScoreSheetView: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-3 rounded-lg bg-[#0a0e17] border border-[#31353f]/40 space-y-1 font-mono text-xs">
-            <div className="flex items-center justify-between text-[#849495]">
+          <div className="p-3 rounded-lg bg-[#0a0e17] border border-[#31353f]/40 space-y-2 font-mono text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[#849495]">
               <span>ACTIVE BENCHMARK DATASET:</span>
-              <span className="text-[#dbfcff]">wisconsin_reduced (6 columns)</span>
+              <select
+                value={catalogMode}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setCatalogMode(next);
+                  if (next !== 'auto') setActiveTable(next);
+                }}
+                className="bg-[#171c25] border border-[#31353f] rounded-lg px-2 py-1 text-[#dbfcff] max-w-full"
+              >
+                <option value="auto">Auto (any catalog table, by field names)</option>
+                {catalogRows.map((row) => (
+                  <option key={row.key} value={row.key}>
+                    {row.key} — {row.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center justify-between text-[#849495]">
+              <span>LAST MATCHED TABLE:</span>
+              <span className="text-[#dbfcff]">{activeTable}</span>
             </div>
             <div className="flex items-center justify-between text-[#849495]">
               <span>SCORING:</span>
@@ -285,7 +395,7 @@ export const ScoreSheetView: React.FC = () => {
               Field guide — what these columns mean
             </span>
             <ul className="space-y-2 text-xs text-[#b9cacb] leading-relaxed">
-              {WISCONSIN_REDUCED_FIELDS.map((field) => (
+              {fieldGuide.map((field) => (
                 <li key={field.key}>
                   <span className="font-mono text-[#00dbe9]">{field.key}</span>
                   <span className="text-[#849495]"> — </span>
@@ -294,12 +404,43 @@ export const ScoreSheetView: React.FC = () => {
                 </li>
               ))}
             </ul>
+            {(activeMeta?.features.length || 0) > 12 ? (
+              <p className="font-mono text-[10px] text-[#849495]">
+                Showing 12 of {activeMeta?.features.length} columns. Need{' '}
+                {activeMeta?.min_filled} named numbers to score. Not a diagnosis.
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-1.5">
             <div className="flex justify-between font-mono text-[10px] text-[#849495]">
-              <span>ALL 6 wisconsin_reduced COLUMNS (KEY: FLOAT)</span>
-              <span>Click High-range sample if this box is empty</span>
+              <span>COLUMNS FOR {activeTable} (need {activeMeta?.min_filled ?? 6}+ named fields)</span>
+              <span>Text PDF upload extracts named numbers only</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="px-3 py-1.5 rounded-lg bg-[#262a34] hover:bg-[#353944] border border-[#31353f] text-xs font-semibold text-[#dfe2f0] cursor-pointer inline-flex items-center gap-1.5">
+                <Upload className="w-3.5 h-3.5 text-[#00dbe9]" />
+                {uploading ? 'Reading PDF…' : 'Upload text PDF'}
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const chosen = e.target.files?.[0];
+                    void handlePdfUpload(chosen);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <label className="flex items-center gap-1.5 font-mono text-[10px] text-[#849495]">
+                <input
+                  type="checkbox"
+                  checked={useNvidia}
+                  onChange={(e) => setUseNvidia(e.target.checked)}
+                />
+                NVIDIA: extract numbers already in the wording (never from symptoms)
+              </label>
             </div>
             <textarea
               rows={8}

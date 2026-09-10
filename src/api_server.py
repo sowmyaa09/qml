@@ -15,12 +15,12 @@ from datetime import date
 
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
-from src.catalog_schemas import SCHEMAS, auto_detect_schema
+from src.catalog_schemas import SCHEMAS, auto_detect_schema_detailed, resolve_catalog_key
 from src.interview import next_interview_step
 from src.research_map import (
     iter_scorable_model_files,
@@ -29,6 +29,8 @@ from src.research_map import (
     score_catalog,
     score_notes_for_table,
     score_pasted_record,
+    score_pasted_record_auto,
+    score_pdf_record,
 )
 from src.research_report_pdf import (
     build_locked_pdf,
@@ -138,6 +140,12 @@ SLIDER_HINTS: dict[str, dict[str, float | str]] = {
     "sod": {"min": 4.5, "max": 163, "step": 1, "default": 137, "unit": "mEq/L"},
     "pot": {"min": 2.5, "max": 47.0, "step": 0.1, "default": 4.6, "unit": "mEq/L"},
     "hemo": {"min": 3.1, "max": 17.8, "step": 0.1, "default": 12.5, "unit": "gms"},
+    "pelvic_incidence": {"min": 26, "max": 130, "step": 0.5, "default": 60.0, "unit": "deg"},
+    "pelvic_tilt": {"min": -7, "max": 50, "step": 0.5, "default": 17.0, "unit": "deg"},
+    "lumbar_lordosis_angle": {"min": 14, "max": 126, "step": 0.5, "default": 52.0, "unit": "deg"},
+    "sacral_slope": {"min": 13, "max": 122, "step": 0.5, "default": 43.0, "unit": "deg"},
+    "pelvic_radius": {"min": 70, "max": 163, "step": 0.5, "default": 118.0, "unit": "mm"},
+    "degree_spondylolisthesis": {"min": -11, "max": 150, "step": 0.5, "default": 26.0, "unit": ""},
     "TSH": {"min": 0.0, "max": 500.0, "step": 0.5, "default": 2.1, "unit": "mIU/L"},
     "TT4": {"min": 2.0, "max": 430.0, "step": 1.0, "default": 108.0, "unit": "nmol/L"},
 }
@@ -167,6 +175,7 @@ METRICS_FILES = {
     "seer_breast": "seer_breast_classical_model_metrics.csv",
     "seizure": "seizure_classical_model_metrics.csv",
     "brfss_heart": "brfss_heart_classical_model_metrics.csv",
+    "ddd": "ddd_classical_model_metrics.csv",
 }
 
 
@@ -188,13 +197,17 @@ class ScoreRequest(BaseModel):
 
 
 class RecordRequest(BaseModel):
-    catalog_key: str = Field(..., min_length=1)
+    catalog_key: str = Field(
+        default="auto",
+        min_length=1,
+        description="Public table key, or 'auto' to match field names (not scores).",
+    )
     text: str = Field(..., min_length=1)
     use_nvidia: bool = False
 
 
 class ReportRequest(BaseModel):
-    catalog_key: str = Field(..., min_length=1)
+    catalog_key: str = Field(default="auto", min_length=1)
     subject_name: str = Field(..., min_length=1, max_length=120)
     date_of_birth: date
     text: str = ""
@@ -356,10 +369,44 @@ def research_record(body: RecordRequest) -> dict[str, Any]:
     """Paste a row for one table. Not a symptom-to-disease oracle."""
     try:
         if body.use_nvidia:
-            return score_notes_for_table(body.catalog_key, body.text)
-        return score_pasted_record(body.catalog_key, body.text)
+            resolved, meta = resolve_catalog_key(body.catalog_key, body.text)
+            if meta.get("detected") and not meta.get("detect_confident"):
+                return score_pasted_record_auto(body.catalog_key, body.text)
+            scored = score_notes_for_table(resolved, body.text)
+            scored["detected_catalog_key"] = resolved
+            scored["detect_confident"] = True
+            scored["table_was_auto_detected"] = bool(meta.get("detected"))
+            return scored
+        return score_pasted_record_auto(body.catalog_key, body.text)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+MAX_PDF_BYTES = 5 * 1024 * 1024
+
+
+@app.post("/v1/research-record-pdf")
+async def research_record_pdf(
+    file: UploadFile = File(...),
+    catalog_key: str = Form("auto"),
+    use_nvidia: str = Form("false"),
+) -> dict[str, Any]:
+    """Extract selectable PDF text, then score one table. Not a scan-to-diagnosis tool."""
+    name = (file.filename or "").lower()
+    if not name.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Upload a .pdf with selectable text.")
+    data = await file.read()
+    if len(data) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=400, detail="PDF is too large (max 5 MB).")
+    nvidia = str(use_nvidia).strip().lower() in {"1", "true", "yes", "on"}
+    try:
+        return score_pdf_record(catalog_key, data, use_nvidia=nvidia)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -369,17 +416,28 @@ def research_report(body: ReportRequest) -> Response:
     """Score one table, return a password-locked research PDF. Not a diagnosis."""
     try:
         if body.text.strip():
-            payload = (
-                score_notes_for_table(body.catalog_key, body.text)
-                if body.use_nvidia
-                else score_pasted_record(body.catalog_key, body.text)
-            )
+            if body.use_nvidia:
+                resolved, meta = resolve_catalog_key(body.catalog_key, body.text)
+                if meta.get("detected") and not meta.get("detect_confident"):
+                    payload = score_pasted_record_auto(body.catalog_key, body.text)
+                else:
+                    payload = score_notes_for_table(resolved, body.text)
+                    payload["detected_catalog_key"] = resolved
+            else:
+                payload = score_pasted_record_auto(body.catalog_key, body.text)
         elif body.features:
-            result = score_catalog(body.catalog_key, body.features)
+            resolved, meta = resolve_catalog_key(body.catalog_key, body.features)
+            if meta.get("detected") and not meta.get("detect_confident"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not tell which table those field names belong to.",
+                )
+            result = score_catalog(resolved, body.features)
             payload = {
                 "disclaimer": RESEARCH_DISCLAIMER,
                 "extracted": body.features,
                 "refused_symptom_checker": False,
+                "detected_catalog_key": resolved,
                 "result": result,
             }
         else:
@@ -414,7 +472,7 @@ def research_report(body: ReportRequest) -> Response:
     fingerprint = fingerprint_key(unlock_key)
     score = result.get("research_positive_percent")
     stored = store_unlock_key(
-        catalog_key=body.catalog_key,
+        catalog_key=payload.get("detected_catalog_key") or body.catalog_key,
         subject_name=body.subject_name,
         date_of_birth=body.date_of_birth,
         unlock_key=unlock_key,
@@ -451,14 +509,21 @@ class AutoDetectRequest(BaseModel):
 def auto_detect(body: AutoDetectRequest) -> dict[str, Any]:
     """Auto-detect which public table best matches the supplied column names or text."""
     inp = body.text if body.text else body.features
-    key, match_pct, schema = auto_detect_schema(inp)
+    key, match_pct, schema, confident, count = auto_detect_schema_detailed(inp)
     return {
         "disclaimer": RESEARCH_DISCLAIMER,
-        "catalog_key": key,
+        "catalog_key": key if confident else None,
+        "guess_catalog_key": key,
         "match_percentage": match_pct,
+        "match_count": count,
+        "detect_confident": confident,
         "schema_title": schema.title,
         "features": list(schema.features),
         "min_filled": schema.min_filled,
+        "note": (
+            "Matched by field names only. A research score does not switch tables "
+            "or name a disease."
+        ),
     }
 
 

@@ -93,7 +93,7 @@ Example **research domains** (separate experiments, not one “guess my disease�
 | Notebook `notebooks/01_classical_baseline.ipynb` | Done |
 | Models and plots | Created when you run training |
 | Qiskit / VQC / QSVC / QNN | Phase 3 — `python -m src.train_qml --with-qnn` |
-| Qubit ablation + second hybrid table | `python -m src.train_qml_ablation`, `python -m src.train_qml_table coimbra` |
+| Qubit ablation + extra hybrid tables | `python -m src.train_qml_ablation`, `python -m src.train_qml_table coimbra`, `python -m src.train_qml_table ddd` |
 | Decision support + explainability pages | Phase 5 — Streamlit sidebar |
 | Reviewer sheet | `python -m src.make_judge_sheet` |
 | Streamlit | Phase 5 — `streamlit run app/streamlit_app.py` |
@@ -290,6 +290,7 @@ python -m src.train_qml --skip-vqc            # fast kernel-only run
 python -m src.train_qml_significance          # bootstrap CIs, McNemar, DeLong, repeated CV
 python -m src.train_qml_ablation              # QSVC at k = 4, 6, 8
 python -m src.train_qml_table coimbra         # second hybrid table
+python -m src.train_qml_table ddd             # vertebral column (disk hernia / spondylolisthesis vs normal)
 ```
 
 VQC (`ZZFeatureMap` + `RealAmplitudes`, COBYLA), QSVC (`FidelityStatevectorKernel`), and an optional **QNN** (`EstimatorQNN`, the PS's "or equivalent") on the **k=6** selected features, versus reduced logistic regression, random forest, and a classical **RBF SVM** control. Same split as Phase 1/2. MinMax scaling to `[0, 1]` is train-only.
@@ -364,9 +365,10 @@ python -m src.train_tabular brfss_heart
 python -m src.audit_datasets --keys brfss_heart cardio seizure
 ```
 
-Added public tables (still separate): `coimbra`, `seizure`, `framingham`, `seer_breast`, `cervical`, `hepatitis`, `pcos`, `brfss_heart`.
+Added public tables (still separate): `coimbra`, `ddd`, `seizure`, `framingham`, `seer_breast`, `cervical`, `hepatitis`, `pcos`, `brfss_heart`.
 
 ```powershell
+python -m src.train_tabular ddd
 python -m src.train_tabular coimbra
 python -m src.train_tabular seizure
 python -m src.train_tabular framingham
