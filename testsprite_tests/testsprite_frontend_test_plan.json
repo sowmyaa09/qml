@@ -1,0 +1,679 @@
+[
+  {
+    "id": "TC001",
+    "title": "Submit a record and receive a research score",
+    "description": "This verifies that a user can enter numeric table values in Paste a record, submit them, and see a research score result.",
+    "category": "Paste a record research score submit path",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record tab"
+      },
+      {
+        "type": "action",
+        "description": "Fill valid numeric values into the record fields"
+      },
+      {
+        "type": "action",
+        "description": "Submit the record for scoring"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a research score is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the submitted record is recognized as scored"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Start a research score from pasted numeric table values",
+    "description": "This verifies that a user can open the scoring flow, enter a full set of numeric table values, and submit them to receive a research score result.",
+    "category": "Paste a record research score",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the More menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record option"
+      },
+      {
+        "type": "action",
+        "description": "Fill the numeric table fields with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Submit the table for scoring"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a research score result is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the submitted record is reflected in the scoring result view"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Recognize the research-only framing on load",
+    "description": "This verifies that opening the home page shows the persistent research-only disclaimer and non-medical-use framing in the app chrome.",
+    "category": "Research disclaimer chrome",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the research-only advisory is visible in the header"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the non-diagnostic disclaimer is visible in the footer"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Switch from Story to Data and preserve tab state",
+    "description": "This verifies that a user can move from the Story view to the Data view and see the active content change accordingly.",
+    "category": "Header tab navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Story tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the Data tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the Data view content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the active tab highlight reflects the Data tab"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Keep the disclaimer visible while browsing the page",
+    "description": "This verifies that the research-only disclaimer remains present after scrolling through the home page content.",
+    "category": "Research disclaimer chrome",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Scroll down the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the research-only advisory is still visible in the header"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the non-diagnostic disclaimer is still visible in the footer"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Generate the locked PDF report after scoring",
+    "description": "This verifies that a user can complete scoring, provide identity details, and generate the locked PDF report from the result flow.",
+    "category": "Paste a record research score",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the More menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record option"
+      },
+      {
+        "type": "action",
+        "description": "Fill the numeric table fields with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Submit the table for scoring"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the name field with a valid name"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid date of birth into the date of birth field"
+      },
+      {
+        "type": "action",
+        "description": "Generate the locked PDF report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a locked PDF report option is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the research score result remains visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Move across the main research views",
+    "description": "This verifies that the header tabs let a user move between the main research views and update the visible content each time.",
+    "category": "Header tab navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Data tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the Classical tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the QML tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the Cost tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the Simulator tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the Simulator view content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the active tab highlight reflects the Simulator tab"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Open the public data library and see catalog resources",
+    "description": "This verifies that the Data view loads the public catalog and shows dataset and saved model resources for browsing.",
+    "category": "Public data library",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Data tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify public catalog resources are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dataset and saved model entries are visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Inspect the cost comparison view",
+    "description": "This verifies that the Cost tab presents the QSVC versus RBF comparison and the associated fit-time and F1 messaging.",
+    "category": "Cost latency dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Cost tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the QSVC versus RBF comparison is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify fit-time messaging for QSVC is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "View the cost comparison for quantum versus classical models",
+    "description": "This verifies that a user can open the cost dashboard and see the benchmark comparison and fit-time messaging needed to judge QSVC versus RBF tradeoffs.",
+    "category": "Cost latency dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Cost tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the QSVC and RBF comparison is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the QSVC fit-time message is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Search the public data library",
+    "description": "This verifies that a user can search the Data view and narrow the visible catalog resources.",
+    "category": "Public data library",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Data tab"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the catalog to load"
+      },
+      {
+        "type": "action",
+        "description": "Fill a search term into the catalog search field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the visible catalog resources are filtered"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify matching dataset or model entries remain visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Inspect the cost view after switching from another tab",
+    "description": "This verifies that switching into the cost dashboard from the main app updates the content to the correct benchmark view.",
+    "category": "Cost latency dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Story tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the Cost tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the cost dashboard content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the QSVC and RBF comparison is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Use Simulator demo content before switching to real scoring",
+    "description": "This verifies that the Simulator view shows demo benchmark output and that the user can move from demo content to the real Paste a record scoring flow.",
+    "category": "Simulator demo content",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Simulator tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify simulator demo output is displayed"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the real record scoring form is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC014",
+    "title": "Keep demo simulator output distinct from scored results",
+    "description": "This verifies that a user can view simulator demo content and then move to the real scoring flow without confusing the demo output with server-scored results.",
+    "category": "Paste a record research score",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Simulator tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify simulator demo output is displayed"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record option"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the scoring form is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC015",
+    "title": "Require identity details only when generating the report",
+    "description": "This verifies that after a successful score, the report step requests identity details before a locked PDF can be generated.",
+    "category": "Paste a record research score",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the More menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record option"
+      },
+      {
+        "type": "action",
+        "description": "Fill the numeric table fields with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Submit the table for scoring"
+      },
+      {
+        "type": "action",
+        "description": "Generate the locked PDF report without identity details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an identity details validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the locked PDF report is not displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC016",
+    "title": "Require identity details before report generation",
+    "description": "This verifies that the locked PDF report cannot be generated until the required identity fields are provided after scoring.",
+    "category": "Paste a record research score submit path",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record tab"
+      },
+      {
+        "type": "action",
+        "description": "Fill valid numeric values into the record fields"
+      },
+      {
+        "type": "action",
+        "description": "Submit the record for scoring"
+      },
+      {
+        "type": "action",
+        "description": "Generate the locked PDF report without filling identity details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an identity validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the locked PDF report is not generated"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC017",
+    "title": "Reject incomplete record input",
+    "description": "This verifies that the scoring form shows validation feedback when required record values are missing.",
+    "category": "Paste a record research score submit path",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record tab"
+      },
+      {
+        "type": "action",
+        "description": "Submit the record for scoring without filling required fields"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a research score is not displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC018",
+    "title": "Show validation when required score inputs are missing",
+    "description": "This verifies that the scoring form rejects submission when required numeric fields are left blank and shows validation feedback.",
+    "category": "Paste a record research score",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the More menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record option"
+      },
+      {
+        "type": "action",
+        "description": "Submit the table for scoring"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the score result is not displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC019",
+    "title": "Refuse non-numeric record input",
+    "description": "This verifies that the scoring form rejects free-text symptom-style input and keeps the user from submitting invalid record values.",
+    "category": "Paste a record research score submit path",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record tab"
+      },
+      {
+        "type": "action",
+        "description": "Fill free-text input into a numeric record field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the record for scoring"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a numeric validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the record is not scored"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC020",
+    "title": "Display validation for out-of-range numeric values",
+    "description": "This verifies that the scoring form blocks clearly invalid numeric values and shows feedback when inputs fall outside the allowed range.",
+    "category": "Paste a record research score",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the More menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record option"
+      },
+      {
+        "type": "action",
+        "description": "Fill out-of-range numeric values into the table fields"
+      },
+      {
+        "type": "action",
+        "description": "Submit the table for scoring"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the score result is not displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC021",
+    "title": "Reject free-text symptom input in the score form",
+    "description": "This verifies that the scoring form does not accept free-text symptom-style input in place of numeric values and keeps the user on the input view with validation feedback.",
+    "category": "Paste a record research score",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the More menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the Paste a record option"
+      },
+      {
+        "type": "action",
+        "description": "Fill a text symptom into a numeric table field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the table for scoring"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the score result is not displayed"
+      }
+    ],
+    "priority": "Low"
+  }
+]

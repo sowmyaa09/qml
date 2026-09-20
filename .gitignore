@@ -45,3 +45,5 @@ data/raw/**
 data/processed/**
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+testsprite_tests/tmp/
+testsprite_tests/tmp/config.json
